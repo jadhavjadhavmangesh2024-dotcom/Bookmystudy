@@ -56,7 +56,7 @@ export default function OwnerAddAbhyasika() {
         longitude: form.longitude ? parseFloat(form.longitude) : null,
       });
       setCreatedId(r.data.id);
-      success('Abhyasika created! Now add facilities and photos.');
+      success('Study room created! Now add facilities and photos.');
       setStep(2);
     } catch (e: any) { error(e.message); }
     setLoading(false);
@@ -78,7 +78,7 @@ export default function OwnerAddAbhyasika() {
     if (validPhotos.length) {
       try {
         await api.abhyasikas.addPhotos(createdId, { photos: validPhotos });
-        success('Abhyasika listing submitted for approval! Awaiting admin review.');
+        success('Study room listing submitted for approval! Awaiting admin review.');
         navigate('/owner/listings');
       } catch (e: any) { error(e.message); }
     } else {
@@ -101,7 +101,7 @@ export default function OwnerAddAbhyasika() {
 
   return (
     <DashboardLayout sidebarItems={SIDEBAR} sidebarTitle="Owner Portal" sidebarColor="blue"
-      title="Add New Abhyasika" subtitle="List your study room on the platform">
+      title="Add New Study Room" subtitle="List your study room on the platform">
       
       {/* Step Indicator */}
       <div className="flex items-center mb-8">
@@ -211,7 +211,7 @@ export default function OwnerAddAbhyasika() {
         {step === 2 && (
           <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm">
             <h3 className="text-lg font-bold text-gray-800 mb-5">Available Facilities</h3>
-            <p className="text-sm text-gray-500 mb-5">Select all facilities available at your Abhyasika</p>
+            <p className="text-sm text-gray-500 mb-5">Select all facilities available at your study room</p>
             <div className="space-y-5">
               {Object.entries(facilityGroups).map(([cat, facs]: any) => (
                 <div key={cat}>

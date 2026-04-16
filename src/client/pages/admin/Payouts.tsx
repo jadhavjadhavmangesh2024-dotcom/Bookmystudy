@@ -3,7 +3,7 @@ import DashboardLayout, { DataTable, StatusBadge } from '../../components/common
 import api from '../../utils/api';
 const SIDEBAR = [
   { label: 'Dashboard', icon: 'fa-grid-2', path: '/admin' },
-  { label: 'Abhyasikas', icon: 'fa-building', path: '/admin/abhyasikas' },
+  { label: 'Study Rooms', icon: 'fa-building', path: '/admin/abhyasikas' },
   { label: 'Users', icon: 'fa-users', path: '/admin/users' },
   { label: 'Revenue', icon: 'fa-chart-line', path: '/admin/revenue' },
   { label: 'Payouts', icon: 'fa-money-bill-transfer', path: '/admin/payouts' },

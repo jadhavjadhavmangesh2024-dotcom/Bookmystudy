@@ -65,7 +65,7 @@ export default function HomePage() {
   ];
 
   const TESTIMONIALS = [
-    { name: 'Amit Kumar', exam: 'UPSC 2024', city: 'Pune', text: 'Abhyasika मुळे मला एक शांत, AC study room मिळाली. Daily habit झाली आणि prelims clear झाला!', stars: 5, initial: 'A' },
+    { name: 'Amit Kumar', exam: 'UPSC 2024', city: 'Pune', text: 'BookMyStudy मुळे मला एक शांत, AC study room मिळाली. Daily habit झाली आणि prelims clear झाला!', stars: 5, initial: 'A' },
     { name: 'Sneha Desai', exam: 'MPSC Rajyaseva', city: 'Nashik', text: 'घरी study होत नव्हती. इथे WiFi, library सगळं available. Highly recommend!', stars: 5, initial: 'S' },
     { name: 'Rahul Patil', exam: 'CA Final', city: 'Mumbai', text: 'Monthly pass घेतला - खूप affordable आहे. Ergonomic chairs मुळे दिवसभर बसता येतं.', stars: 5, initial: 'R' },
   ];
@@ -95,7 +95,7 @@ export default function HomePage() {
             <div className="fade-in">
               <div className="inline-flex items-center gap-2 bg-white/15 backdrop-blur-sm border border-white/25 text-white text-sm px-4 py-2 rounded-full mb-6 shadow-lg">
                 <i className="fas fa-award text-orange-300 text-xs"></i>
-                <span>Maharashtra's #1 Study Room Platform</span>
+                <span>Maharashtra's #1 Study Room Booking Platform</span>
               </div>
 
               <h1 className="text-4xl sm:text-5xl lg:text-[3.5rem] font-bold text-white leading-tight font-poppins">
@@ -154,7 +154,7 @@ export default function HomePage() {
             <div className="fade-in">
               <div className="grid grid-cols-2 gap-4">
                 {[
-                  { value: '500+', label: 'Verified Abhyasikas', icon: 'fa-building', sub: 'Across Maharashtra', c: 'from-teal-400/25 to-teal-600/25', ic: 'text-teal-300' },
+                  { value: '500+', label: 'Verified Study Rooms', icon: 'fa-building', sub: 'Across Maharashtra', c: 'from-teal-400/25 to-teal-600/25', ic: 'text-teal-300' },
                   { value: '25,000+', label: 'Happy Students', icon: 'fa-users', sub: 'Already studying', c: 'from-emerald-400/25 to-emerald-600/25', ic: 'text-emerald-300' },
                   { value: '8 Cities', label: 'Available In', icon: 'fa-location-dot', sub: 'Mumbai, Pune & more', c: 'from-orange-400/25 to-orange-600/25', ic: 'text-orange-300' },
                   { value: '₹40/day', label: 'Starting Price', icon: 'fa-tag', sub: 'Most affordable', c: 'from-amber-400/25 to-amber-600/25', ic: 'text-amber-300' },
@@ -410,7 +410,7 @@ export default function HomePage() {
                 <div className="w-9 h-9 gradient-primary rounded-xl flex items-center justify-center shadow-md">
                   <i className="fas fa-book-open text-white text-sm"></i>
                 </div>
-                <span className="text-white font-bold text-xl font-poppins">Abhyasika</span>
+                <span className="text-white font-bold text-xl font-poppins">BookMyStudy</span>
               </div>
               <p className="text-sm leading-relaxed text-gray-500">
                 Maharashtra's #1 study room marketplace. UPSC, MPSC, CA परीक्षांसाठी best study space शोधा.
@@ -442,7 +442,7 @@ export default function HomePage() {
           </div>
 
           <div className="border-t border-gray-800 pt-8 flex flex-col sm:flex-row justify-between items-center gap-4">
-            <p className="text-xs text-gray-600">© 2024 Abhyasika. All rights reserved. Made with ❤️ for Maharashtra's students.</p>
+            <p className="text-xs text-gray-600">© 2024 BookMyStudy. All rights reserved. Made with ❤️ for Maharashtra's students.</p>
             <div className="flex items-center gap-2 text-xs text-gray-600">
               <i className="fas fa-shield-check text-teal-500"></i>
               100% Safe & Verified Platform

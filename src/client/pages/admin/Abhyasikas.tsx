@@ -5,7 +5,7 @@ import { useToast } from '../../components/common/ToastProvider';
 
 const SIDEBAR = [
   { label: 'Dashboard', icon: 'fa-grid-2', path: '/admin' },
-  { label: 'Abhyasikas', icon: 'fa-building', path: '/admin/abhyasikas' },
+  { label: 'Study Rooms', icon: 'fa-building', path: '/admin/abhyasikas' },
   { label: 'Users', icon: 'fa-users', path: '/admin/users' },
   { label: 'Revenue', icon: 'fa-chart-line', path: '/admin/revenue' },
   { label: 'Payouts', icon: 'fa-money-bill-transfer', path: '/admin/payouts' },
@@ -41,7 +41,7 @@ export default function AdminAbhyasikas() {
   const handleApprove = async (id: number) => {
     try {
       await api.admin.approve(id, {});
-      success('Abhyasika approved and listed!');
+      success('Study Room approved and listed!');
       loadData();
       setShowModal(null);
     } catch (e: any) { error(e.message); }
@@ -51,7 +51,7 @@ export default function AdminAbhyasikas() {
     if (!rejectReason.trim()) return error('Please provide a rejection reason');
     try {
       await api.admin.reject(id, { reason: rejectReason });
-      success('Abhyasika rejected');
+      success('Study Room rejected');
       loadData();
       setShowModal(null);
       setRejectReason('');
@@ -60,7 +60,7 @@ export default function AdminAbhyasikas() {
 
   return (
     <DashboardLayout sidebarItems={SIDEBAR} sidebarTitle="Super Admin" sidebarColor="purple"
-      title="Abhyasika Management" subtitle="Review and manage all study room listings"
+      title="Study Room Management" subtitle="Review and manage all study room listings"
       actions={
         <div className="flex items-center gap-3">
           <input type="text" value={search} onChange={e => setSearch(e.target.value)} placeholder="Search..."
@@ -87,7 +87,7 @@ export default function AdminAbhyasikas() {
             )
           },
           {
-            key: 'name', label: 'Abhyasika', render: (v, r) => (
+            key: 'name', label: 'Study Room', render: (v, r) => (
               <div>
                 <p className="font-semibold text-gray-800">{v}</p>
                 <p className="text-xs text-gray-400">{r.city_name}</p>
@@ -140,7 +140,7 @@ export default function AdminAbhyasikas() {
           }
         ]}
         data={data}
-        emptyText="No abhyasikas found"
+        emptyText="No study rooms found"
       />
 
       {/* Pagination */}
@@ -154,12 +154,12 @@ export default function AdminAbhyasikas() {
 
       {/* Approve Modal */}
       {showModal === 'approve' && (
-        <Modal title="Approve Abhyasika" onClose={() => setShowModal(null)}>
+        <Modal title="Approve Study Room" onClose={() => setShowModal(null)}>
           <div className="text-center py-4">
             <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
               <i className="fas fa-circle-check text-green-500 text-3xl"></i>
             </div>
-            <p className="text-gray-700 mb-2 font-medium">Are you sure you want to approve this Abhyasika?</p>
+            <p className="text-gray-700 mb-2 font-medium">Are you sure you want to approve this Study Room?</p>
             <p className="text-sm text-gray-500">It will be listed publicly and owners will be notified.</p>
           </div>
           <div className="flex gap-3 mt-4">
@@ -173,7 +173,7 @@ export default function AdminAbhyasikas() {
 
       {/* Reject Modal */}
       {showModal === 'reject' && (
-        <Modal title="Reject Abhyasika" onClose={() => setShowModal(null)}>
+        <Modal title="Reject Study Room" onClose={() => setShowModal(null)}>
           <div className="py-2">
             <label className="block text-sm font-semibold text-gray-700 mb-2">Rejection Reason *</label>
             <textarea value={rejectReason} onChange={e => setRejectReason(e.target.value)} rows={4}
@@ -191,7 +191,7 @@ export default function AdminAbhyasikas() {
 
       {/* View Modal */}
       {showModal === 'view' && selectedItem && (
-        <Modal title="Abhyasika Details" onClose={() => setShowModal(null)} wide>
+        <Modal title="Study Room Details" onClose={() => setShowModal(null)} wide>
           <div className="grid grid-cols-2 gap-4 text-sm">
             {[
               ['Name', selectedItem.name],

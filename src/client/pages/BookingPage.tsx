@@ -272,7 +272,7 @@ export default function BookingPage() {
             <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm sticky top-24">
               <h3 className="font-bold text-gray-800 text-lg mb-5">Booking Summary</h3>
 
-              {/* Abhyasika Info */}
+              {/* Study Room Info */}
               <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl mb-5">
                 <div className="w-12 h-10 bg-indigo-100 rounded-lg flex items-center justify-center flex-shrink-0">
                   <i className="fas fa-building text-indigo-400"></i>

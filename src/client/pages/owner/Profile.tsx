@@ -151,7 +151,7 @@ export default function OwnerProfile() {
         {stats && (
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-5 pt-5 border-t border-white/20">
             {[
-              { label: 'Abhyasikas', value: stats.total_abhyasikas, icon: 'fa-building' },
+              { label: 'Study Rooms', value: stats.total_abhyasikas, icon: 'fa-building' },
               { label: 'Approved', value: stats.approved, icon: 'fa-check-circle' },
               { label: 'Total Seats', value: stats.total_seats, icon: 'fa-chair' },
               { label: 'Commission', value: `${stats.commission_rate}%`, icon: 'fa-percent' },

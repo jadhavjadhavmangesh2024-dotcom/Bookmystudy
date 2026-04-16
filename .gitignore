@@ -127,3 +127,7 @@ docker-compose.override.yml
 .grunt
 .lock-wscript
 
+
+# Cloudflare Wrangler local state
+.wrangler/
+.dev.vars

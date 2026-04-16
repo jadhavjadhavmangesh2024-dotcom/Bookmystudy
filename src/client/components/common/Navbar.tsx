@@ -76,7 +76,7 @@ export default function Navbar() {
             <div className="w-9 h-9 gradient-primary rounded-xl flex items-center justify-center shadow-md">
               <i className="fas fa-book-open text-white text-sm"></i>
             </div>
-            <span className={`text-xl font-bold font-poppins ${logoClass}`}>Abhyasika</span>
+            <span className={`text-xl font-bold font-poppins ${logoClass}`}>BookMyStudy</span>
           </Link>
 
           {/* Desktop Nav */}

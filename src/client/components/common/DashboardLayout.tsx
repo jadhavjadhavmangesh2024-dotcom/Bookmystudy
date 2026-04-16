@@ -30,20 +30,23 @@ export default function DashboardLayout({
     indigo: 'bg-indigo-600 text-indigo-50',
     purple: 'bg-purple-700 text-purple-50',
     emerald: 'bg-emerald-700 text-emerald-50',
-    blue: 'bg-blue-700 text-blue-50'
+    blue: 'bg-blue-700 text-blue-50',
+    teal: 'bg-teal-700 text-teal-50',
   };
   const activeColors: Record<string, string> = {
     indigo: 'bg-indigo-500/30 text-white',
     purple: 'bg-purple-600/30 text-white',
     emerald: 'bg-emerald-600/30 text-white',
-    blue: 'bg-blue-600/30 text-white'
+    blue: 'bg-blue-600/30 text-white',
+    teal: 'bg-teal-600/30 text-white',
   };
 
   const sidebarBg = {
     indigo: 'bg-gradient-to-b from-indigo-700 to-indigo-900',
     purple: 'bg-gradient-to-b from-purple-700 to-purple-900',
     emerald: 'bg-gradient-to-b from-emerald-700 to-emerald-900',
-    blue: 'bg-gradient-to-b from-blue-700 to-blue-900'
+    blue: 'bg-gradient-to-b from-blue-700 to-blue-900',
+    teal: 'bg-gradient-to-b from-teal-700 to-teal-900',
   }[sidebarColor] || 'bg-gradient-to-b from-indigo-700 to-indigo-900';
 
   const SidebarContent = () => (
@@ -55,7 +58,7 @@ export default function DashboardLayout({
             <i className="fas fa-book-open text-white text-sm"></i>
           </div>
           <div>
-            <div className="text-white font-bold font-poppins text-lg">Abhyasika</div>
+            <div className="text-white font-bold font-poppins text-lg">BookMyStudy</div>
             <div className="text-white/60 text-xs capitalize">{sidebarTitle || user?.role}</div>
           </div>
         </div>

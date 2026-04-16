@@ -121,7 +121,8 @@ admin.post('/abhyasikas/:id/approve', authMiddleware, requireAdmin(), async (c) 
   try {
     const user = c.get('user' as any) as any;
     const id = c.req.param('id');
-    const { notes } = await c.req.json().catch(() => ({ notes: '' }));
+    const body = await c.req.json().catch(() => ({}));
+    const notes = body?.notes ?? null;   // always null-safe
     const db = c.env.DB;
 
     await db.prepare(`
@@ -134,8 +135,8 @@ admin.post('/abhyasikas/:id/approve', authMiddleware, requireAdmin(), async (c) 
     if (abhyasika) {
       await db.prepare(`
         INSERT INTO notifications (user_id, type, title, message)
-        VALUES (?, 'abhyasika_approved', 'Abhyasika Approved!', ?)
-      `).bind(abhyasika.owner_id, `Congratulations! Your Abhyasika "${abhyasika.name}" has been approved and is now live.`).run();
+        VALUES (?, 'abhyasika_approved', 'Study Room Approved!', ?)
+      `).bind(abhyasika.owner_id, `Congratulations! Your study room "${abhyasika.name}" has been approved and is now live on BookMyStudy.`).run();
     }
 
     return c.json(successResponse(null, 'Abhyasika approved'));
@@ -162,10 +163,76 @@ admin.post('/abhyasikas/:id/reject', authMiddleware, requireAdmin(), async (c) =
       await db.prepare(`
         INSERT INTO notifications (user_id, type, title, message)
         VALUES (?, 'abhyasika_rejected', 'Listing Rejected', ?)
-      `).bind(abhyasika.owner_id, `Your Abhyasika "${abhyasika.name}" was not approved. Reason: ${reason}`).run();
+      `).bind(abhyasika.owner_id, `Your study room "${abhyasika.name}" was not approved. Reason: ${reason}`).run();
     }
 
     return c.json(successResponse(null, 'Abhyasika rejected'));
+  } catch (err: any) {
+    return c.json(errorResponse(err.message || 'Failed to reject'), 500);
+  }
+});
+
+// GET /api/admin/pending-owners - All pending owner registrations
+admin.get('/pending-owners', authMiddleware, requireAdmin(), async (c) => {
+  try {
+    const db = c.env.DB;
+    const owners = await db.prepare(`
+      SELECT u.id, u.uuid, u.email, u.phone, u.first_name, u.last_name, u.role,
+        u.is_active, u.created_at, op.business_name, op.pan_number, op.gst_number
+      FROM users u
+      LEFT JOIN owner_profiles op ON op.user_id = u.id
+      WHERE u.role = 'owner' AND u.is_active = 0
+      ORDER BY u.created_at DESC
+    `).all();
+    return c.json(successResponse(owners.results, 'Pending owner registrations'));
+  } catch (err: any) {
+    return c.json(errorResponse(err.message || 'Failed to fetch'), 500);
+  }
+});
+
+// POST /api/admin/users/:id/approve-owner - Approve owner registration
+admin.post('/users/:id/approve-owner', authMiddleware, requireAdmin(), async (c) => {
+  try {
+    const id = c.req.param('id');
+    const db = c.env.DB;
+
+    const user = await db.prepare('SELECT * FROM users WHERE id = ? AND role = ?').bind(id, 'owner').first() as any;
+    if (!user) return c.json(errorResponse('Owner not found'), 404);
+
+    await db.prepare('UPDATE users SET is_active = 1 WHERE id = ?').bind(id).run();
+
+    // Send notification to owner
+    await db.prepare(`
+      INSERT INTO notifications (user_id, type, title, message)
+      VALUES (?, 'owner_approved', '🎉 Account Approved!', ?)
+    `).bind(id, 'Congratulations! Your owner account has been approved. You can now login and start adding your study rooms.').run();
+
+    return c.json(successResponse(null, 'Owner account approved'));
+  } catch (err: any) {
+    return c.json(errorResponse(err.message || 'Failed to approve'), 500);
+  }
+});
+
+// POST /api/admin/users/:id/reject-owner - Reject owner registration
+admin.post('/users/:id/reject-owner', authMiddleware, requireAdmin(), async (c) => {
+  try {
+    const id = c.req.param('id');
+    const { reason = 'Your application did not meet our requirements.' } = await c.req.json().catch(() => ({ reason: '' }));
+    const db = c.env.DB;
+
+    const user = await db.prepare('SELECT * FROM users WHERE id = ? AND role = ?').bind(id, 'owner').first() as any;
+    if (!user) return c.json(errorResponse('Owner not found'), 404);
+
+    // Delete the user (or keep with is_active=0 and add a rejection note)
+    await db.prepare('UPDATE users SET is_active = 0 WHERE id = ?').bind(id).run();
+
+    // Send rejection notification
+    await db.prepare(`
+      INSERT INTO notifications (user_id, type, title, message)
+      VALUES (?, 'owner_rejected', 'Registration Not Approved', ?)
+    `).bind(id, `Your owner account registration was not approved. Reason: ${reason}`).run();
+
+    return c.json(successResponse(null, 'Owner registration rejected'));
   } catch (err: any) {
     return c.json(errorResponse(err.message || 'Failed to reject'), 500);
   }

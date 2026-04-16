@@ -7,7 +7,16 @@ import { generateUUID, createSlug, successResponse, errorResponse, paginationMet
 
 const abhyasikas = new Hono<{ Bindings: { DB: D1Database } }>();
 
-// GET /api/abhyasikas - Search/List abhyasikas
+// ── Helper: verify owner of an abhyasika ──────────────────────
+async function verifyOwnership(db: D1Database, abhyasikaId: string | number, userId: number, role: string) {
+  const row = await db.prepare('SELECT owner_id FROM abhyasikas WHERE id = ?').bind(abhyasikaId).first() as any;
+  if (!row) return { ok: false, notFound: true };
+  if (role === 'super_admin') return { ok: true, notFound: false };
+  if (row.owner_id !== userId) return { ok: false, notFound: false };
+  return { ok: true, notFound: false };
+}
+
+// GET /api/abhyasikas - Public search/list (approved only)
 abhyasikas.get('/', async (c) => {
   try {
     const db = c.env.DB;
@@ -17,9 +26,6 @@ abhyasikas.get('/', async (c) => {
     const search = c.req.query('search') || '';
     const cityId = c.req.query('city_id');
     const localityId = c.req.query('locality_id');
-    const minPrice = c.req.query('min_price');
-    const maxPrice = c.req.query('max_price');
-    const facilities = c.req.query('facilities')?.split(',').filter(Boolean) || [];
     const sortBy = c.req.query('sort_by') || 'rating';
     const lat = parseFloat(c.req.query('lat') || '0');
     const lng = parseFloat(c.req.query('lng') || '0');
@@ -42,7 +48,7 @@ abhyasikas.get('/', async (c) => {
     if (sortBy === 'rating') orderClause = 'a.rating_avg DESC';
 
     const query = `
-      SELECT a.*, 
+      SELECT a.*,
         c.name as city_name, l.name as locality_name,
         (SELECT url FROM abhyasika_photos WHERE abhyasika_id = a.id AND is_primary = 1 LIMIT 1) as primary_photo,
         (SELECT MIN(sc.daily_price) FROM seat_categories sc WHERE sc.abhyasika_id = a.id AND sc.is_active = 1) as min_price,
@@ -64,12 +70,11 @@ abhyasikas.get('/', async (c) => {
 
     let items = results.results as any[];
 
-    // Calculate distance if lat/lng provided
     if (lat && lng) {
       items = items.map(item => ({
         ...item,
-        distance: item.latitude && item.longitude ? 
-          calculateDistance(lat, lng, item.latitude, item.longitude) : null
+        distance: item.latitude && item.longitude
+          ? calculateDistance(lat, lng, item.latitude, item.longitude) : null
       })).filter(item => !radius || !item.distance || item.distance <= radius);
 
       if (sortBy === 'distance') {
@@ -123,6 +128,16 @@ abhyasikas.get('/nearby', async (c) => {
 abhyasikas.get('/featured', async (c) => {
   try {
     const db = c.env.DB;
+    // Try in-memory cache first (5 minute TTL for featured rooms)
+    const cache = (c as any).cache;
+    const cacheKey = 'featured_abhyasikas';
+    if (cache) {
+      const cached = cache.get(cacheKey);
+      if (cached) {
+        return c.json(successResponse(cached, 'Featured abhyasikas (cached)'));
+      }
+    }
+
     const results = await db.prepare(`
       SELECT a.*, c.name as city_name, l.name as locality_name,
         (SELECT url FROM abhyasika_photos WHERE abhyasika_id = a.id AND is_primary = 1 LIMIT 1) as primary_photo,
@@ -134,13 +149,14 @@ abhyasikas.get('/featured', async (c) => {
       ORDER BY a.rating_avg DESC LIMIT 6
     `).all();
 
+    if (cache) cache.set(cacheKey, results.results, 300); // 5 min cache
     return c.json(successResponse(results.results, 'Featured abhyasikas'));
   } catch (err: any) {
     return c.json(errorResponse(err.message || 'Failed to fetch featured'), 500);
   }
 });
 
-// GET /api/abhyasikas/owner/my-listings  ← must be BEFORE /:id
+// GET /api/abhyasikas/owner/my-listings  ← MUST be BEFORE /:id
 abhyasikas.get('/owner/my-listings', authMiddleware, requireOwner(), async (c) => {
   try {
     const user = c.get('user') as AuthUser;
@@ -149,6 +165,7 @@ abhyasikas.get('/owner/my-listings', authMiddleware, requireOwner(), async (c) =
     const listings = await db.prepare(`
       SELECT a.*, c.name as city_name, l.name as locality_name,
         (SELECT url FROM abhyasika_photos WHERE abhyasika_id = a.id AND is_primary = 1 LIMIT 1) as primary_photo,
+        (SELECT COUNT(*) FROM seats WHERE abhyasika_id = a.id AND is_active = 1) as total_seats,
         (SELECT COUNT(*) FROM bookings WHERE abhyasika_id = a.id AND status = 'confirmed') as active_bookings
       FROM abhyasikas a
       LEFT JOIN cities c ON c.id = a.city_id
@@ -163,7 +180,54 @@ abhyasikas.get('/owner/my-listings', authMiddleware, requireOwner(), async (c) =
   }
 });
 
-// GET /api/abhyasikas/:id
+// GET /api/abhyasikas/:id/analytics  ← BEFORE generic /:id
+abhyasikas.get('/:id/analytics', authMiddleware, requireOwner(), async (c) => {
+  try {
+    const id = c.req.param('id');
+    const user = c.get('user') as AuthUser;
+    const db = c.env.DB;
+
+    // Ownership check
+    const check = await verifyOwnership(db, id, user.id, user.role);
+    if (check.notFound) return c.json(errorResponse('Abhyasika not found'), 404);
+    if (!check.ok) return c.json(errorResponse('You can only view analytics for your own abhyasikas'), 403);
+
+    const [stats, recentBookings, monthlyRevenue] = await Promise.all([
+      db.prepare(`
+        SELECT
+          COUNT(*) as total_bookings,
+          COALESCE(SUM(total_amount), 0) as total_revenue,
+          COALESCE(AVG(total_amount), 0) as avg_booking_value,
+          COUNT(CASE WHEN status = 'confirmed' THEN 1 END) as active_bookings,
+          COUNT(CASE WHEN status = 'cancelled' THEN 1 END) as cancelled_bookings
+        FROM bookings WHERE abhyasika_id = ?
+      `).bind(id).first(),
+      db.prepare(`
+        SELECT b.*, u.first_name, u.last_name, s.seat_number
+        FROM bookings b
+        JOIN users u ON u.id = b.student_id
+        JOIN seats s ON s.id = b.seat_id
+        WHERE b.abhyasika_id = ?
+        ORDER BY b.created_at DESC LIMIT 10
+      `).bind(id).all(),
+      db.prepare(`
+        SELECT strftime('%Y-%m', created_at) as month, SUM(total_amount) as revenue, COUNT(*) as bookings
+        FROM bookings WHERE abhyasika_id = ?
+        GROUP BY month ORDER BY month DESC LIMIT 12
+      `).bind(id).all()
+    ]);
+
+    return c.json(successResponse({
+      stats,
+      recent_bookings: recentBookings.results,
+      monthly_revenue: monthlyRevenue.results
+    }));
+  } catch (err: any) {
+    return c.json(errorResponse(err.message || 'Failed to fetch analytics'), 500);
+  }
+});
+
+// GET /api/abhyasikas/:id  (public - approved only)
 abhyasikas.get('/:id', async (c) => {
   try {
     const id = c.req.param('id');
@@ -184,8 +248,8 @@ abhyasikas.get('/:id', async (c) => {
     const [photos, facilities, seatCategories, reviews, operatingHours] = await Promise.all([
       db.prepare('SELECT * FROM abhyasika_photos WHERE abhyasika_id = ? ORDER BY sort_order').bind((abhyasika as any).id).all(),
       db.prepare(`
-        SELECT f.*, fc.name as category_name FROM abhyasika_facilities af 
-        JOIN facilities f ON f.id = af.facility_id 
+        SELECT f.*, fc.name as category_name FROM abhyasika_facilities af
+        JOIN facilities f ON f.id = af.facility_id
         JOIN facility_categories fc ON fc.id = f.category_id
         WHERE af.abhyasika_id = ?
       `).bind((abhyasika as any).id).all(),
@@ -199,7 +263,6 @@ abhyasikas.get('/:id', async (c) => {
       db.prepare('SELECT * FROM operating_hours WHERE abhyasika_id = ? ORDER BY day_of_week').bind((abhyasika as any).id).all()
     ]);
 
-    // Increment view count
     await db.prepare('UPDATE abhyasikas SET view_count = view_count + 1 WHERE id = ?').bind((abhyasika as any).id).run();
 
     return c.json(successResponse({
@@ -238,40 +301,65 @@ abhyasikas.post('/', authMiddleware, requireOwner(), async (c) => {
       city_id, locality_id, latitude, longitude, phone, email, website,
       opening_time || '06:00', closing_time || '22:00').run();
 
-    // Update owner profile
     await db.prepare('UPDATE owner_profiles SET total_abhyasikas = total_abhyasikas + 1 WHERE user_id = ?').bind(user.id).run();
 
-    return c.json(successResponse({ id: result.meta.last_row_id, uuid, slug }, 'Abhyasika created. Awaiting approval.'), 201);
+    return c.json(successResponse({ id: result.meta.last_row_id, uuid, slug }, 'Study room created. Awaiting approval.'), 201);
   } catch (err: any) {
     return c.json(errorResponse(err.message || 'Failed to create abhyasika'), 500);
   }
 });
 
-// PUT /api/abhyasikas/:id - Owner updates abhyasika
+// PUT /api/abhyasikas/:id - Owner updates OWN abhyasika only
 abhyasikas.put('/:id', authMiddleware, requireOwner(), async (c) => {
   try {
     const user = c.get('user') as AuthUser;
     const id = c.req.param('id');
-    const body = await c.req.json();
     const db = c.env.DB;
 
-    const existing = await db.prepare('SELECT * FROM abhyasikas WHERE id = ?').bind(id).first() as any;
-    if (!existing) return c.json(errorResponse('Not found'), 404);
-    if (existing.owner_id !== user.id && user.role !== 'super_admin') {
-      return c.json(errorResponse('Unauthorized'), 403);
-    }
+    // ── Ownership verification ──
+    const check = await verifyOwnership(db, id, user.id, user.role);
+    if (check.notFound) return c.json(errorResponse('Abhyasika not found'), 404);
+    if (!check.ok) return c.json(errorResponse('You can only edit your own abhyasikas'), 403);
 
+    const existing = await db.prepare('SELECT * FROM abhyasikas WHERE id = ?').bind(id).first() as any;
+    const body = await c.req.json();
     const { name, description, tagline, address, pincode, city_id, locality_id,
-      latitude, longitude, phone, email, website, opening_time, closing_time, days_open } = body;
+      latitude, longitude, phone, email, website, opening_time, closing_time, days_open,
+      cancellation_policy, cancellation_hours, refund_percentage, late_cancel_refund,
+      no_show_policy, custom_policy_text } = body;
 
     await db.prepare(`
       UPDATE abhyasikas SET name=?, description=?, tagline=?, address=?, pincode=?,
         city_id=?, locality_id=?, latitude=?, longitude=?, phone=?, email=?, website=?,
-        opening_time=?, closing_time=?, days_open=?, updated_at=datetime('now')
+        opening_time=?, closing_time=?, days_open=?,
+        cancellation_policy=?, cancellation_hours=?, refund_percentage=?,
+        late_cancel_refund=?, no_show_policy=?, custom_policy_text=?,
+        updated_at=datetime('now')
       WHERE id = ?
-    `).bind(name || existing.name, description, tagline, address || existing.address,
-      pincode, city_id, locality_id, latitude, longitude, phone, email, website,
-      opening_time, closing_time, days_open, id).run();
+    `).bind(
+      name || existing.name,
+      description ?? existing.description,
+      tagline ?? existing.tagline,
+      address || existing.address,
+      pincode ?? existing.pincode,
+      city_id ?? existing.city_id,
+      locality_id ?? existing.locality_id,
+      latitude ?? existing.latitude,
+      longitude ?? existing.longitude,
+      phone ?? existing.phone,
+      email ?? existing.email,
+      website ?? existing.website,
+      opening_time || existing.opening_time,
+      closing_time || existing.closing_time,
+      days_open || existing.days_open,
+      cancellation_policy || existing.cancellation_policy || 'flexible',
+      cancellation_hours ?? existing.cancellation_hours ?? 24,
+      refund_percentage ?? existing.refund_percentage ?? 100,
+      late_cancel_refund ?? existing.late_cancel_refund ?? 50,
+      no_show_policy || existing.no_show_policy || 'no_refund',
+      custom_policy_text ?? existing.custom_policy_text ?? '',
+      id
+    ).run();
 
     return c.json(successResponse(null, 'Abhyasika updated successfully'));
   } catch (err: any) {
@@ -282,14 +370,16 @@ abhyasikas.put('/:id', authMiddleware, requireOwner(), async (c) => {
 // POST /api/abhyasikas/:id/photos
 abhyasikas.post('/:id/photos', authMiddleware, requireOwner(), async (c) => {
   try {
+    const user = c.get('user') as AuthUser;
     const id = c.req.param('id');
-    const body = await c.req.json();
-    const { photos } = body; // Array of {url, caption, is_primary}
     const db = c.env.DB;
 
-    const existing = await db.prepare('SELECT id, owner_id FROM abhyasikas WHERE id = ?').bind(id).first() as any;
-    if (!existing) return c.json(errorResponse('Not found'), 404);
+    // ── Ownership verification ──
+    const check = await verifyOwnership(db, id, user.id, user.role);
+    if (check.notFound) return c.json(errorResponse('Not found'), 404);
+    if (!check.ok) return c.json(errorResponse('You can only add photos to your own abhyasikas'), 403);
 
+    const { photos } = await c.req.json();
     for (let i = 0; i < photos.length; i++) {
       const photo = photos[i];
       await db.prepare(`
@@ -307,8 +397,13 @@ abhyasikas.post('/:id/photos', authMiddleware, requireOwner(), async (c) => {
 // DELETE /api/abhyasikas/:id/photos/:photoId
 abhyasikas.delete('/:id/photos/:photoId', authMiddleware, requireOwner(), async (c) => {
   try {
+    const user = c.get('user') as AuthUser;
     const { id, photoId } = c.req.param();
     const db = c.env.DB;
+
+    const check = await verifyOwnership(db, id, user.id, user.role);
+    if (!check.ok) return c.json(errorResponse(check.notFound ? 'Not found' : 'Forbidden'), check.notFound ? 404 : 403);
+
     await db.prepare('DELETE FROM abhyasika_photos WHERE id = ? AND abhyasika_id = ?').bind(photoId, id).run();
     return c.json(successResponse(null, 'Photo deleted'));
   } catch (err: any) {
@@ -319,10 +414,14 @@ abhyasikas.delete('/:id/photos/:photoId', authMiddleware, requireOwner(), async 
 // PUT /api/abhyasikas/:id/facilities
 abhyasikas.put('/:id/facilities', authMiddleware, requireOwner(), async (c) => {
   try {
+    const user = c.get('user') as AuthUser;
     const id = c.req.param('id');
-    const { facility_ids } = await c.req.json();
     const db = c.env.DB;
 
+    const check = await verifyOwnership(db, id, user.id, user.role);
+    if (!check.ok) return c.json(errorResponse(check.notFound ? 'Not found' : 'Forbidden'), check.notFound ? 404 : 403);
+
+    const { facility_ids } = await c.req.json();
     await db.prepare('DELETE FROM abhyasika_facilities WHERE abhyasika_id = ?').bind(id).run();
     for (const fId of facility_ids) {
       await db.prepare('INSERT INTO abhyasika_facilities (abhyasika_id, facility_id) VALUES (?, ?)').bind(id, fId).run();
@@ -331,43 +430,6 @@ abhyasikas.put('/:id/facilities', authMiddleware, requireOwner(), async (c) => {
     return c.json(successResponse(null, 'Facilities updated'));
   } catch (err: any) {
     return c.json(errorResponse(err.message || 'Failed to update facilities'), 500);
-  }
-});
-
-// GET /api/abhyasikas/:id/analytics
-abhyasikas.get('/:id/analytics', authMiddleware, requireOwner(), async (c) => {
-  try {
-    const id = c.req.param('id');
-    const db = c.env.DB;
-
-    const [stats, recentBookings, monthlyRevenue] = await Promise.all([
-      db.prepare(`
-        SELECT 
-          COUNT(*) as total_bookings,
-          SUM(total_amount) as total_revenue,
-          AVG(total_amount) as avg_booking_value,
-          COUNT(CASE WHEN status = 'confirmed' THEN 1 END) as active_bookings,
-          COUNT(CASE WHEN status = 'cancelled' THEN 1 END) as cancelled_bookings
-        FROM bookings WHERE abhyasika_id = ?
-      `).bind(id).first(),
-      db.prepare(`
-        SELECT b.*, u.first_name, u.last_name, s.seat_number
-        FROM bookings b
-        JOIN users u ON u.id = b.student_id
-        JOIN seats s ON s.id = b.seat_id
-        WHERE b.abhyasika_id = ?
-        ORDER BY b.created_at DESC LIMIT 10
-      `).bind(id).all(),
-      db.prepare(`
-        SELECT strftime('%Y-%m', created_at) as month, SUM(total_amount) as revenue, COUNT(*) as bookings
-        FROM bookings WHERE abhyasika_id = ?
-        GROUP BY month ORDER BY month DESC LIMIT 12
-      `).bind(id).all()
-    ]);
-
-    return c.json(successResponse({ stats, recent_bookings: recentBookings.results, monthly_revenue: monthlyRevenue.results }));
-  } catch (err: any) {
-    return c.json(errorResponse(err.message || 'Failed to fetch analytics'), 500);
   }
 });
 

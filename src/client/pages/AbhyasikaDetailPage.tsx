@@ -58,7 +58,7 @@ export default function AbhyasikaDetailPage() {
     <div className="min-h-screen pt-20 flex items-center justify-center">
       <div className="text-center">
         <i className="fas fa-building text-5xl text-gray-300 mb-4"></i>
-        <h2 className="text-2xl font-bold text-gray-700">Abhyasika Not Found</h2>
+        <h2 className="text-2xl font-bold text-gray-700">Study Room Not Found</h2>
         <Link to="/search" className="mt-4 inline-block text-indigo-600 hover:underline">Browse All Rooms</Link>
       </div>
     </div>
@@ -183,7 +183,7 @@ export default function AbhyasikaDetailPage() {
                   <div className="space-y-5">
                     {abhyasika.description && (
                       <div>
-                        <h3 className="font-bold text-gray-800 mb-2 text-lg">About this Abhyasika</h3>
+                        <h3 className="font-bold text-gray-800 mb-2 text-lg">About this Study Room</h3>
                         <p className="text-gray-600 leading-relaxed">{abhyasika.description}</p>
                       </div>
                     )}

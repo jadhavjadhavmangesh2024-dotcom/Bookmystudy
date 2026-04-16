@@ -31,10 +31,13 @@ auth.post('/register', async (c) => {
     const uuid = generateUUID();
     const passwordHash = hashPassword(password);
 
+    // Owners start as inactive (pending admin approval); students are active immediately
+    const isActive = role === 'owner' ? 0 : 1;
+
     const result = await db.prepare(`
       INSERT INTO users (uuid, email, phone, password_hash, first_name, last_name, role, is_verified, is_active)
-      VALUES (?, ?, ?, ?, ?, ?, ?, 1, 1)
-    `).bind(uuid, email, phone || null, passwordHash, first_name, last_name, role).run();
+      VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?)
+    `).bind(uuid, email, phone || null, passwordHash, first_name, last_name, role, isActive).run();
 
     const userId = result.meta.last_row_id;
 
@@ -43,9 +46,25 @@ auth.post('/register', async (c) => {
       await db.prepare('INSERT INTO student_profiles (user_id) VALUES (?)').bind(userId).run();
     } else if (role === 'owner') {
       await db.prepare('INSERT INTO owner_profiles (user_id) VALUES (?)').bind(userId).run();
+      // Notify admins about new owner registration
+      const admins = await db.prepare("SELECT id FROM users WHERE role = 'super_admin'").all();
+      for (const admin of (admins.results as any[])) {
+        await db.prepare(`
+          INSERT INTO notifications (user_id, type, title, message)
+          VALUES (?, 'new_owner_registration', 'New Owner Registration', ?)
+        `).bind(admin.id, `${first_name} ${last_name} (${email}) has registered as a new library owner. Please review and approve/reject.`).run();
+      }
     }
 
-    // Create session token
+    // Owners need admin approval, return without token
+    if (role === 'owner') {
+      return c.json(successResponse({
+        pending_approval: true,
+        user: { id: userId, uuid, email, first_name, last_name, role }
+      }, 'Registration submitted! Your account is pending admin approval. You will be notified once approved.'), 201);
+    }
+
+    // Students get immediate access
     const token = generateUUID();
     const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
     await db.prepare(`
@@ -74,11 +93,21 @@ auth.post('/login', async (c) => {
 
     const db = c.env.DB;
     const user = await db.prepare(`
-      SELECT * FROM users WHERE email = ? AND is_active = 1
+      SELECT * FROM users WHERE email = ?
     `).bind(email).first() as any;
 
     if (!user) {
       return c.json(errorResponse('Invalid credentials'), 401);
+    }
+
+    // Check if owner is pending approval
+    if (user.role === 'owner' && !user.is_active) {
+      return c.json(errorResponse('Your account is pending admin approval. Please wait for approval before logging in.'), 403);
+    }
+
+    // Check if account is deactivated
+    if (!user.is_active) {
+      return c.json(errorResponse('Your account has been deactivated. Please contact support.'), 403);
     }
 
     if (!verifyPassword(password, user.password_hash)) {

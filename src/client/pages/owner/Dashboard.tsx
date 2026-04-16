@@ -43,7 +43,7 @@ export default function OwnerDashboard() {
       {/* Listings */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100">
         <div className="p-5 border-b flex items-center justify-between">
-          <h3 className="font-bold text-gray-800 text-lg">My Abhyasikas</h3>
+          <h3 className="font-bold text-gray-800 text-lg">My Study Rooms</h3>
           <Link to="/owner/listings" className="text-sm text-indigo-600 font-medium">View All →</Link>
         </div>
         {loading ? (
@@ -53,7 +53,7 @@ export default function OwnerDashboard() {
         ) : listings.length === 0 ? (
           <div className="p-12 text-center">
             <i className="fas fa-building text-4xl text-gray-300 mb-4"></i>
-            <h3 className="text-lg font-bold text-gray-600 mb-2">No Abhyasikas Yet</h3>
+            <h3 className="text-lg font-bold text-gray-600 mb-2">No Study Rooms Yet</h3>
             <p className="text-gray-500 mb-5">Add your first study room to start accepting bookings</p>
             <Link to="/owner/listings/new" className="gradient-primary text-white px-6 py-3 rounded-xl font-semibold">
               <i className="fas fa-plus mr-2"></i>Add Your First Room

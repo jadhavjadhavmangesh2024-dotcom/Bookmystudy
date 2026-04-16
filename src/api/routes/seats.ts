@@ -7,7 +7,29 @@ import { successResponse, errorResponse } from '../utils/helpers';
 
 const seats = new Hono<{ Bindings: { DB: D1Database } }>();
 
-// GET /api/seats/abhyasika/:abhyasikaId - All seats for an abhyasika
+// ── Helper: verify owner of an abhyasika ──────────────────────
+async function verifyAbhyasikaOwner(db: D1Database, abhyasikaId: string | number, userId: number, role: string) {
+  if (role === 'super_admin') return { ok: true };
+  const row = await db.prepare('SELECT owner_id FROM abhyasikas WHERE id = ?').bind(abhyasikaId).first() as any;
+  if (!row) return { ok: false, notFound: true };
+  if (row.owner_id !== userId) return { ok: false };
+  return { ok: true };
+}
+
+// ── Helper: verify seat belongs to owner's abhyasika ──────────
+async function verifySeatOwner(db: D1Database, seatId: string | number, userId: number, role: string) {
+  if (role === 'super_admin') return { ok: true };
+  const row = await db.prepare(`
+    SELECT a.owner_id FROM seats s
+    JOIN abhyasikas a ON a.id = s.abhyasika_id
+    WHERE s.id = ?
+  `).bind(seatId).first() as any;
+  if (!row) return { ok: false, notFound: true };
+  if (row.owner_id !== userId) return { ok: false };
+  return { ok: true };
+}
+
+// GET /api/seats/abhyasika/:abhyasikaId - Public: seats for a specific abhyasika
 seats.get('/abhyasika/:abhyasikaId', async (c) => {
   try {
     const abhyasikaId = c.req.param('abhyasikaId');
@@ -33,7 +55,7 @@ seats.get('/abhyasika/:abhyasikaId', async (c) => {
   }
 });
 
-// GET /api/seats/availability/:seatId
+// GET /api/seats/availability/:seatId - Public: check seat availability
 seats.get('/availability/:seatId', async (c) => {
   try {
     const seatId = c.req.param('seatId');
@@ -41,7 +63,7 @@ seats.get('/availability/:seatId', async (c) => {
     const toDate = c.req.query('to') || new Date(Date.now() + 90 * 86400000).toISOString().split('T')[0];
     const db = c.env.DB;
 
-    const bookings = await db.prepare(`
+    const bookingsList = await db.prepare(`
       SELECT start_date, end_date, booking_type, status
       FROM bookings
       WHERE seat_id = ? AND status IN ('confirmed', 'pending')
@@ -58,7 +80,7 @@ seats.get('/availability/:seatId', async (c) => {
 
     return c.json(successResponse({
       seat,
-      booked_dates: bookings.results,
+      booked_dates: bookingsList.results,
       available_from: fromDate
     }));
   } catch (err: any) {
@@ -66,90 +88,7 @@ seats.get('/availability/:seatId', async (c) => {
   }
 });
 
-// POST /api/seats - Create seat (Owner)
-seats.post('/', authMiddleware, requireOwner(), async (c) => {
-  try {
-    const body = await c.req.json();
-    const { abhyasika_id, floor_plan_id, category_id, seat_number, seat_label, row_number, column_number, position_x, position_y } = body;
-    const db = c.env.DB;
-
-    const result = await db.prepare(`
-      INSERT INTO seats (abhyasika_id, floor_plan_id, category_id, seat_number, seat_label, row_number, column_number, position_x, position_y)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).bind(abhyasika_id, floor_plan_id, category_id, seat_number, seat_label, row_number, column_number, position_x, position_y).run();
-
-    await db.prepare(`UPDATE abhyasikas SET total_seats = total_seats + 1, available_seats = available_seats + 1 WHERE id = ?`).bind(abhyasika_id).run();
-
-    return c.json(successResponse({ id: result.meta.last_row_id }, 'Seat created'), 201);
-  } catch (err: any) {
-    return c.json(errorResponse(err.message || 'Failed to create seat'), 500);
-  }
-});
-
-// POST /api/seats/bulk - Bulk create seats
-seats.post('/bulk', authMiddleware, requireOwner(), async (c) => {
-  try {
-    const { abhyasika_id, floor_plan_id, category_id, rows, cols, prefix = 'S' } = await c.req.json();
-    const db = c.env.DB;
-    let count = 0;
-
-    for (let r = 1; r <= rows; r++) {
-      for (let col = 1; col <= cols; col++) {
-        const seatNum = `${prefix}${String(r).padStart(2,'0')}${String(col).padStart(2,'0')}`;
-        await db.prepare(`
-          INSERT INTO seats (abhyasika_id, floor_plan_id, category_id, seat_number, seat_label, row_number, column_number)
-          VALUES (?, ?, ?, ?, ?, ?, ?)
-        `).bind(abhyasika_id, floor_plan_id, category_id, seatNum, seatNum, r, col).run();
-        count++;
-      }
-    }
-
-    await db.prepare(`UPDATE abhyasikas SET total_seats = total_seats + ?, available_seats = available_seats + ? WHERE id = ?`).bind(count, count, abhyasika_id).run();
-
-    return c.json(successResponse({ count }, `${count} seats created`), 201);
-  } catch (err: any) {
-    return c.json(errorResponse(err.message || 'Failed to bulk create seats'), 500);
-  }
-});
-
-// PUT /api/seats/:id
-seats.put('/:id', authMiddleware, requireOwner(), async (c) => {
-  try {
-    const id = c.req.param('id');
-    const body = await c.req.json();
-    const { seat_number, seat_label, category_id, status, is_active, notes } = body;
-    const db = c.env.DB;
-
-    await db.prepare(`
-      UPDATE seats SET seat_number=?, seat_label=?, category_id=?, status=?, is_active=?, notes=?, updated_at=datetime('now')
-      WHERE id = ?
-    `).bind(seat_number, seat_label, category_id, status, is_active, notes, id).run();
-
-    return c.json(successResponse(null, 'Seat updated'));
-  } catch (err: any) {
-    return c.json(errorResponse(err.message || 'Failed to update seat'), 500);
-  }
-});
-
-// DELETE /api/seats/:id
-seats.delete('/:id', authMiddleware, requireOwner(), async (c) => {
-  try {
-    const id = c.req.param('id');
-    const db = c.env.DB;
-
-    const seat = await db.prepare('SELECT * FROM seats WHERE id = ?').bind(id).first() as any;
-    if (!seat) return c.json(errorResponse('Not found'), 404);
-
-    await db.prepare('UPDATE seats SET is_active = 0 WHERE id = ?').bind(id).run();
-    await db.prepare('UPDATE abhyasikas SET total_seats = total_seats - 1 WHERE id = ?').bind(seat.abhyasika_id).run();
-
-    return c.json(successResponse(null, 'Seat deactivated'));
-  } catch (err: any) {
-    return c.json(errorResponse(err.message || 'Failed to delete seat'), 500);
-  }
-});
-
-// GET /api/seats/floor-plans/:abhyasikaId
+// GET /api/seats/floor-plans/:abhyasikaId - Public
 seats.get('/floor-plans/:abhyasikaId', async (c) => {
   try {
     const abhyasikaId = c.req.param('abhyasikaId');
@@ -170,25 +109,7 @@ seats.get('/floor-plans/:abhyasikaId', async (c) => {
   }
 });
 
-// POST /api/seats/floor-plans
-seats.post('/floor-plans', authMiddleware, requireOwner(), async (c) => {
-  try {
-    const body = await c.req.json();
-    const { abhyasika_id, name, description, floor_number, layout_data, image_url } = body;
-    const db = c.env.DB;
-
-    const result = await db.prepare(`
-      INSERT INTO floor_plans (abhyasika_id, name, description, floor_number, layout_data, image_url)
-      VALUES (?, ?, ?, ?, ?, ?)
-    `).bind(abhyasika_id, name, description, floor_number || 1, layout_data, image_url).run();
-
-    return c.json(successResponse({ id: result.meta.last_row_id }, 'Floor plan created'), 201);
-  } catch (err: any) {
-    return c.json(errorResponse(err.message || 'Failed to create floor plan'), 500);
-  }
-});
-
-// GET /api/seats/categories/:abhyasikaId
+// GET /api/seats/categories/:abhyasikaId - Public
 seats.get('/categories/:abhyasikaId', async (c) => {
   try {
     const abhyasikaId = c.req.param('abhyasikaId');
@@ -208,12 +129,98 @@ seats.get('/categories/:abhyasikaId', async (c) => {
   }
 });
 
-// POST /api/seats/categories
+// POST /api/seats - Owner creates a seat (own abhyasika only)
+seats.post('/', authMiddleware, requireOwner(), async (c) => {
+  try {
+    const user = c.get('user') as AuthUser;
+    const body = await c.req.json();
+    const { abhyasika_id, floor_plan_id, category_id, seat_number, seat_label, row_number, column_number, position_x, position_y } = body;
+    const db = c.env.DB;
+
+    // Ownership check
+    const check = await verifyAbhyasikaOwner(db, abhyasika_id, user.id, user.role);
+    if (check.notFound) return c.json(errorResponse('Abhyasika not found'), 404);
+    if (!check.ok) return c.json(errorResponse('You can only add seats to your own abhyasikas'), 403);
+
+    const result = await db.prepare(`
+      INSERT INTO seats (abhyasika_id, floor_plan_id, category_id, seat_number, seat_label, row_number, column_number, position_x, position_y)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).bind(abhyasika_id, floor_plan_id, category_id, seat_number, seat_label, row_number, column_number, position_x, position_y).run();
+
+    await db.prepare(`UPDATE abhyasikas SET total_seats = total_seats + 1, available_seats = available_seats + 1 WHERE id = ?`).bind(abhyasika_id).run();
+
+    return c.json(successResponse({ id: result.meta.last_row_id }, 'Seat created'), 201);
+  } catch (err: any) {
+    return c.json(errorResponse(err.message || 'Failed to create seat'), 500);
+  }
+});
+
+// POST /api/seats/bulk - Bulk create seats (own abhyasika only)
+seats.post('/bulk', authMiddleware, requireOwner(), async (c) => {
+  try {
+    const user = c.get('user') as AuthUser;
+    const { abhyasika_id, floor_plan_id, category_id, rows, cols, prefix = 'S' } = await c.req.json();
+    const db = c.env.DB;
+
+    // Ownership check
+    const check = await verifyAbhyasikaOwner(db, abhyasika_id, user.id, user.role);
+    if (check.notFound) return c.json(errorResponse('Abhyasika not found'), 404);
+    if (!check.ok) return c.json(errorResponse('You can only add seats to your own abhyasikas'), 403);
+
+    let count = 0;
+    for (let r = 1; r <= rows; r++) {
+      for (let col = 1; col <= cols; col++) {
+        const seatNum = `${prefix}${String(r).padStart(2, '0')}${String(col).padStart(2, '0')}`;
+        await db.prepare(`
+          INSERT INTO seats (abhyasika_id, floor_plan_id, category_id, seat_number, seat_label, row_number, column_number)
+          VALUES (?, ?, ?, ?, ?, ?, ?)
+        `).bind(abhyasika_id, floor_plan_id, category_id, seatNum, seatNum, r, col).run();
+        count++;
+      }
+    }
+
+    await db.prepare(`UPDATE abhyasikas SET total_seats = total_seats + ?, available_seats = available_seats + ? WHERE id = ?`).bind(count, count, abhyasika_id).run();
+
+    return c.json(successResponse({ count }, `${count} seats created`), 201);
+  } catch (err: any) {
+    return c.json(errorResponse(err.message || 'Failed to bulk create seats'), 500);
+  }
+});
+
+// POST /api/seats/floor-plans - Owner creates floor plan (own abhyasika only)
+seats.post('/floor-plans', authMiddleware, requireOwner(), async (c) => {
+  try {
+    const user = c.get('user') as AuthUser;
+    const body = await c.req.json();
+    const { abhyasika_id, name, description, floor_number, layout_data, image_url } = body;
+    const db = c.env.DB;
+
+    const check = await verifyAbhyasikaOwner(db, abhyasika_id, user.id, user.role);
+    if (check.notFound) return c.json(errorResponse('Abhyasika not found'), 404);
+    if (!check.ok) return c.json(errorResponse('You can only manage your own abhyasikas'), 403);
+
+    const result = await db.prepare(`
+      INSERT INTO floor_plans (abhyasika_id, name, description, floor_number, layout_data, image_url)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `).bind(abhyasika_id, name, description, floor_number || 1, layout_data, image_url).run();
+
+    return c.json(successResponse({ id: result.meta.last_row_id }, 'Floor plan created'), 201);
+  } catch (err: any) {
+    return c.json(errorResponse(err.message || 'Failed to create floor plan'), 500);
+  }
+});
+
+// POST /api/seats/categories - Owner creates category (own abhyasika only)
 seats.post('/categories', authMiddleware, requireOwner(), async (c) => {
   try {
+    const user = c.get('user') as AuthUser;
     const body = await c.req.json();
     const { abhyasika_id, name, description, color_code, daily_price, weekly_price, monthly_price, amenities } = body;
     const db = c.env.DB;
+
+    const check = await verifyAbhyasikaOwner(db, abhyasika_id, user.id, user.role);
+    if (check.notFound) return c.json(errorResponse('Abhyasika not found'), 404);
+    if (!check.ok) return c.json(errorResponse('You can only manage your own abhyasikas'), 403);
 
     const result = await db.prepare(`
       INSERT INTO seat_categories (abhyasika_id, name, description, color_code, daily_price, weekly_price, monthly_price, amenities)
@@ -226,14 +233,21 @@ seats.post('/categories', authMiddleware, requireOwner(), async (c) => {
   }
 });
 
-// PUT /api/seats/categories/:id
+// PUT /api/seats/categories/:id - Owner updates category (own abhyasika only)
 seats.put('/categories/:id', authMiddleware, requireOwner(), async (c) => {
   try {
+    const user = c.get('user') as AuthUser;
     const id = c.req.param('id');
-    const body = await c.req.json();
-    const { name, description, color_code, daily_price, weekly_price, monthly_price } = body;
     const db = c.env.DB;
 
+    // Verify ownership via category → abhyasika
+    const cat = await db.prepare('SELECT abhyasika_id FROM seat_categories WHERE id = ?').bind(id).first() as any;
+    if (!cat) return c.json(errorResponse('Category not found'), 404);
+
+    const check = await verifyAbhyasikaOwner(db, cat.abhyasika_id, user.id, user.role);
+    if (!check.ok) return c.json(errorResponse('You can only manage your own abhyasikas'), 403);
+
+    const { name, description, color_code, daily_price, weekly_price, monthly_price } = await c.req.json();
     await db.prepare(`
       UPDATE seat_categories SET name=?, description=?, color_code=?, daily_price=?, weekly_price=?, monthly_price=?
       WHERE id = ?
@@ -242,6 +256,56 @@ seats.put('/categories/:id', authMiddleware, requireOwner(), async (c) => {
     return c.json(successResponse(null, 'Category updated'));
   } catch (err: any) {
     return c.json(errorResponse(err.message || 'Failed to update category'), 500);
+  }
+});
+
+// PUT /api/seats/:id - Owner updates seat (own abhyasika only)
+seats.put('/:id', authMiddleware, requireOwner(), async (c) => {
+  try {
+    const user = c.get('user') as AuthUser;
+    const id = c.req.param('id');
+    const db = c.env.DB;
+
+    const check = await verifySeatOwner(db, id, user.id, user.role);
+    if (check.notFound) return c.json(errorResponse('Seat not found'), 404);
+    if (!check.ok) return c.json(errorResponse('You can only manage seats of your own abhyasikas'), 403);
+
+    const { seat_number, seat_label, category_id, status, is_active, notes } = await c.req.json();
+    await db.prepare(`
+      UPDATE seats SET seat_number=?, seat_label=?, category_id=?, status=?, is_active=?, notes=?, updated_at=datetime('now')
+      WHERE id = ?
+    `).bind(seat_number, seat_label, category_id, status, is_active, notes, id).run();
+
+    return c.json(successResponse(null, 'Seat updated'));
+  } catch (err: any) {
+    return c.json(errorResponse(err.message || 'Failed to update seat'), 500);
+  }
+});
+
+// DELETE /api/seats/:id - Owner deletes seat (own abhyasika only)
+seats.delete('/:id', authMiddleware, requireOwner(), async (c) => {
+  try {
+    const user = c.get('user') as AuthUser;
+    const id = c.req.param('id');
+    const db = c.env.DB;
+
+    const seat = await db.prepare(`
+      SELECT s.*, a.owner_id FROM seats s
+      JOIN abhyasikas a ON a.id = s.abhyasika_id
+      WHERE s.id = ?
+    `).bind(id).first() as any;
+
+    if (!seat) return c.json(errorResponse('Seat not found'), 404);
+    if (user.role !== 'super_admin' && seat.owner_id !== user.id) {
+      return c.json(errorResponse('You can only delete seats of your own abhyasikas'), 403);
+    }
+
+    await db.prepare('UPDATE seats SET is_active = 0 WHERE id = ?').bind(id).run();
+    await db.prepare('UPDATE abhyasikas SET total_seats = total_seats - 1 WHERE id = ?').bind(seat.abhyasika_id).run();
+
+    return c.json(successResponse(null, 'Seat deactivated'));
+  } catch (err: any) {
+    return c.json(errorResponse(err.message || 'Failed to delete seat'), 500);
   }
 });
 

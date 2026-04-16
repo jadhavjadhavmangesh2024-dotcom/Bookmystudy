@@ -14,7 +14,52 @@ import paymentRoutes from './api/routes/payments';
 import adminRoutes from './api/routes/admin';
 import miscRoutes from './api/routes/misc';
 
+// ============================================================
+// IN-MEMORY CACHE (edge-local, resets per Worker instance)
+// For production use Cloudflare KV for shared cache
+// ============================================================
+const memCache = new Map<string, { data: any; expires: number }>();
+
+function cacheGet(key: string): any | null {
+  const entry = memCache.get(key);
+  if (!entry) return null;
+  if (Date.now() > entry.expires) { memCache.delete(key); return null; }
+  return entry.data;
+}
+
+function cacheSet(key: string, data: any, ttlSeconds: number): void {
+  // Limit cache size to avoid memory issues
+  if (memCache.size > 500) {
+    const firstKey = memCache.keys().next().value;
+    if (firstKey) memCache.delete(firstKey);
+  }
+  memCache.set(key, { data, expires: Date.now() + ttlSeconds * 1000 });
+}
+
+// ============================================================
+// RATE LIMITER (in-memory per Worker instance)
+// ============================================================
+const rateLimitStore = new Map<string, { count: number; reset: number }>();
+
+function checkRateLimit(ip: string, maxReq: number, windowMs: number): boolean {
+  const now = Date.now();
+  const entry = rateLimitStore.get(ip);
+  if (!entry || now > entry.reset) {
+    rateLimitStore.set(ip, { count: 1, reset: now + windowMs });
+    return true; // allowed
+  }
+  entry.count++;
+  if (entry.count > maxReq) return false; // blocked
+  return true;
+}
+
 const app = new Hono<{ Bindings: { DB: D1Database } }>();
+
+// Expose cache helpers to routes via context
+app.use('*', async (c, next) => {
+  (c as any).cache = { get: cacheGet, set: cacheSet };
+  await next();
+});
 
 // ============================================================
 // MIDDLEWARE
@@ -24,9 +69,29 @@ app.use('/api/*', cors({
   origin: '*',
   allowHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
   allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  exposeHeaders: ['X-Total-Count'],
+  exposeHeaders: ['X-Total-Count', 'X-RateLimit-Remaining'],
   maxAge: 600
 }));
+
+// Rate limiting middleware - 200 req/min per IP on API routes
+app.use('/api/*', async (c, next) => {
+  const ip = c.req.header('cf-connecting-ip') || c.req.header('x-forwarded-for') || 'unknown';
+  const allowed = checkRateLimit(ip, 200, 60_000);
+  if (!allowed) {
+    return c.json({ success: false, error: 'Too many requests. Please slow down.' }, 429);
+  }
+  await next();
+});
+
+// Cache control headers for public GET endpoints
+app.use('/api/abhyasikas*', async (c, next) => {
+  await next();
+  const method = c.req.method;
+  if (method === 'GET' && c.res.status === 200) {
+    // Cache public listing/featured for 2 minutes on CDN
+    c.res.headers.set('Cache-Control', 'public, max-age=120, stale-while-revalidate=60');
+  }
+});
 
 // ============================================================
 // API ROUTES
@@ -48,7 +113,7 @@ app.get('/api/health', async (c) => {
   try {
     const db = c.env.DB;
     await db.prepare('SELECT 1').first();
-    return c.json({ status: 'healthy', timestamp: new Date().toISOString(), service: 'Abhyasika API' });
+    return c.json({ status: 'healthy', timestamp: new Date().toISOString(), service: 'BookMyStudy API' });
   } catch (err) {
     return c.json({ status: 'degraded', error: String(err) }, 503);
   }
@@ -74,8 +139,8 @@ function getHTMLShell() {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Abhyasika - Find Your Perfect Study Space</title>
-  <meta name="description" content="Abhyasika is India's largest marketplace for study rooms and libraries. Find, book and manage your perfect study space.">
+  <title>BookMyStudy - Find Your Perfect Study Space</title>
+  <meta name="description" content="BookMyStudy is India's largest marketplace for study rooms and libraries. Find, book and manage your perfect study space.">
   <meta name="theme-color" content="#0f766e">
   
   <!-- Tailwind CSS -->
@@ -169,6 +234,21 @@ function getHTMLShell() {
     
     /* Mobile nav overlay */
     .mobile-overlay { background: rgba(0,0,0,0.5); backdrop-filter: blur(4px); }
+    
+    /* Mobile responsive improvements */
+    @media (max-width: 640px) {
+      .card-hover:hover { transform: none; }
+      .toast { right: 12px; left: 12px; max-width: 100%; font-size: 0.85rem; }
+    }
+    
+    /* Scrollable tabs on mobile */
+    .tabs-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+    .tabs-scroll::-webkit-scrollbar { display: none; }
+    
+    /* Touch-friendly buttons */
+    @media (max-width: 768px) {
+      .seat { width: 34px; height: 34px; font-size: 0.55rem; }
+    }
   </style>
 </head>
 <body class="bg-gray-50">

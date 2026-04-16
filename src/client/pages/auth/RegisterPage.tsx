@@ -8,6 +8,7 @@ export default function RegisterPage() {
   const [form, setForm] = useState({ first_name: '', last_name: '', email: '', phone: '', password: '', confirm_password: '', role: 'student' });
   const [loading, setLoading] = useState(false);
   const [showPass, setShowPass] = useState(false);
+  const [pendingApproval, setPendingApproval] = useState(false);
   const { register } = useAuth();
   const { error, success } = useToast();
   const navigate = useNavigate();
@@ -24,10 +25,52 @@ export default function RegisterPage() {
       success('Account created successfully!');
       navigate('/');
     } catch (err: any) {
-      error(err.message || 'Registration failed');
+      if (err.pending_approval) {
+        setPendingApproval(true);
+      } else {
+        error(err.message || 'Registration failed');
+      }
     }
     setLoading(false);
   };
+
+  // Show pending approval screen for owners
+  if (pendingApproval) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-amber-50 via-white to-orange-50 flex items-center justify-center p-4 pt-20">
+        <div className="w-full max-w-md text-center">
+          <div className="w-24 h-24 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-6">
+            <i className="fas fa-clock text-amber-500 text-4xl"></i>
+          </div>
+          <h1 className="text-2xl font-bold text-gray-800 mb-3">Registration Submitted!</h1>
+          <p className="text-gray-600 mb-4">
+            तुमची owner registration request आमच्या admin कडे गेली आहे.
+          </p>
+          <div className="bg-amber-50 border border-amber-200 rounded-2xl p-5 mb-6 text-left">
+            <h3 className="font-bold text-amber-800 mb-3"><i className="fas fa-info-circle mr-2"></i>पुढे काय होईल?</h3>
+            <ol className="text-sm text-amber-700 space-y-2">
+              <li className="flex items-start gap-2"><span className="font-bold">1.</span> Admin तुमची details review करेल</li>
+              <li className="flex items-start gap-2"><span className="font-bold">2.</span> Approval नंतर तुम्हाला email/notification येईल</li>
+              <li className="flex items-start gap-2"><span className="font-bold">3.</span> तुम्ही login करून तुमची study room add करू शकाल</li>
+            </ol>
+          </div>
+          <p className="text-sm text-gray-500 mb-6">
+            <i className="fas fa-envelope mr-2"></i>
+            <strong>{form.email}</strong> वर approval notification येईल.
+          </p>
+          <Link to="/login"
+            className="inline-flex items-center gap-2 px-6 py-3 bg-amber-500 text-white rounded-xl font-semibold hover:bg-amber-600 transition-colors">
+            <i className="fas fa-sign-in-alt"></i>Login Page वर जा
+          </Link>
+          <div className="mt-4">
+            <Link to="/" className="text-sm text-gray-500 hover:text-gray-700">
+              <i className="fas fa-home mr-1"></i>Homepage वर जा
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50 flex items-center justify-center p-4 pt-20">
@@ -39,8 +82,8 @@ export default function RegisterPage() {
               <i className="fas fa-book-open text-white text-xl"></i>
             </div>
             <div className="text-left">
-              <div className="text-2xl font-bold text-gray-800 font-poppins">Abhyasika</div>
-              <div className="text-xs text-gray-500">Join 25,000+ students</div>
+              <div className="text-2xl font-bold text-gray-800 font-poppins">BookMyStudy</div>
+              <div className="text-xs text-gray-500">Book Your Study Room</div>
             </div>
           </Link>
           <h1 className="text-2xl font-bold text-gray-800 mt-6">Create Your Account</h1>

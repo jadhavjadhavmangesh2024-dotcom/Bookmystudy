@@ -70,7 +70,7 @@ export default function SearchPage() {
                 type="text"
                 value={filters.search}
                 onChange={e => handleFilterChange('search', e.target.value)}
-                placeholder="Search Abhyasikas..."
+                placeholder="Search Study Rooms..."
                 className="flex-1 bg-transparent text-sm focus:outline-none text-gray-800 placeholder-gray-400"
               />
               {filters.search && (

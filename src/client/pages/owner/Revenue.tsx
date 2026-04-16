@@ -69,7 +69,7 @@ export default function OwnerRevenue() {
       {/* Listing Selector */}
       {listings.length > 1 && (
         <div className="mb-6">
-          <label className="block text-sm font-semibold text-gray-700 mb-2">Select Abhyasika</label>
+          <label className="block text-sm font-semibold text-gray-700 mb-2">Select Study Room</label>
           <div className="flex flex-wrap gap-2">
             {listings.map(l => (
               <button key={l.id} onClick={() => setSelectedId(l.id)}
@@ -85,7 +85,7 @@ export default function OwnerRevenue() {
         <div className="bg-white rounded-2xl p-16 text-center border border-gray-100 shadow-sm">
           <i className="fas fa-chart-line text-5xl text-gray-300 mb-4"></i>
           <h3 className="text-lg font-bold text-gray-600 mb-2">No Listings Yet</h3>
-          <p className="text-gray-500">Add your first Abhyasika to start tracking revenue.</p>
+          <p className="text-gray-500">Add your first study room to start tracking revenue.</p>
         </div>
       ) : loadingAnalytics ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 mb-6">

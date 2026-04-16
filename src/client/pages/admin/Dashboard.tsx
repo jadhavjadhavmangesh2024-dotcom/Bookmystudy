@@ -6,7 +6,7 @@ import { useToast } from '../../components/common/ToastProvider';
 
 const SIDEBAR_ITEMS = [
   { label: 'Dashboard', icon: 'fa-grid-2', path: '/admin' },
-  { label: 'Abhyasikas', icon: 'fa-building', path: '/admin/abhyasikas' },
+  { label: 'Study Rooms', icon: 'fa-building', path: '/admin/abhyasikas' },
   { label: 'Users', icon: 'fa-users', path: '/admin/users' },
   { label: 'Revenue', icon: 'fa-chart-line', path: '/admin/revenue' },
   { label: 'Payouts', icon: 'fa-money-bill-transfer', path: '/admin/payouts' },
@@ -107,7 +107,7 @@ export default function AdminDashboard() {
                   <i className="fas fa-clock-rotate-left text-yellow-600 text-xl"></i>
                 </div>
                 <div>
-                  <p className="font-bold text-yellow-800">{data.pending_approvals} Abhyasika{data.pending_approvals > 1 ? 's' : ''} Awaiting Approval</p>
+                  <p className="font-bold text-yellow-800">{data.pending_approvals} Study Room{data.pending_approvals > 1 ? 's' : ''} Awaiting Approval</p>
                   <p className="text-sm text-yellow-600">Review and approve new study room listings</p>
                 </div>
               </div>
@@ -126,7 +126,7 @@ export default function AdminDashboard() {
               columns={[
                 { key: 'booking_number', label: 'Booking #', render: v => <span className="font-mono text-sm text-indigo-600 font-semibold">{v}</span> },
                 { key: 'first_name', label: 'Student', render: (_, r) => `${r.first_name} ${r.last_name}` },
-                { key: 'abhyasika_name', label: 'Abhyasika' },
+                { key: 'abhyasika_name', label: 'Study Room' },
                 { key: 'total_amount', label: 'Amount', render: v => <span className="font-semibold text-green-600">₹{Number(v).toLocaleString('en-IN')}</span> },
                 { key: 'status', label: 'Status', render: v => <StatusBadge status={v} /> },
                 { key: 'created_at', label: 'Date', render: v => new Date(v).toLocaleDateString('en-IN') },

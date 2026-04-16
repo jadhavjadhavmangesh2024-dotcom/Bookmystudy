@@ -7,7 +7,7 @@ export default function LoadingScreen() {
         <div className="w-16 h-16 gradient-primary rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg">
           <i className="fas fa-book-open text-white text-2xl loading-spinner" style={{animationDuration:'1.5s'}}></i>
         </div>
-        <h2 className="text-xl font-bold text-gray-800 font-poppins">Abhyasika</h2>
+        <h2 className="text-xl font-bold text-gray-800 font-poppins">BookMyStudy</h2>
         <p className="text-gray-500 mt-1 text-sm">Loading your study space...</p>
         <div className="flex justify-center gap-1 mt-4">
           {[0,1,2].map(i => (

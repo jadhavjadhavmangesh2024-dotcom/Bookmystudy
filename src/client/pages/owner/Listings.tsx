@@ -20,7 +20,7 @@ export default function OwnerListings() {
       <DataTable loading={loading} data={listings} emptyText="No listings yet. Add your first study room!"
         columns={[
           { key: 'primary_photo', label: '', render: (v) => <div className="w-12 h-10 rounded-lg overflow-hidden bg-indigo-100">{v ? <img src={v} alt="" className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center"><i className="fas fa-building text-indigo-300 text-sm"></i></div>}</div> },
-          { key: 'name', label: 'Abhyasika', render: (v,r) => <div><p className="font-semibold">{v}</p><p className="text-xs text-gray-400">{r.city_name}</p></div> },
+          { key: 'name', label: 'Study Room', render: (v,r) => <div><p className="font-semibold">{v}</p><p className="text-xs text-gray-400">{r.city_name}</p></div> },
           { key: 'total_seats', label: 'Seats', render: (v,r) => <div className="text-center"><p className="font-bold">{v}</p><p className="text-xs text-green-600">{r.available_seats} free</p></div> },
           { key: 'active_bookings', label: 'Bookings', render: v => <span className="badge bg-blue-100 text-blue-700">{v||0} active</span> },
           { key: 'rating_avg', label: 'Rating', render: (v,r) => v>0 ? <span className="flex items-center gap-1"><i className="fas fa-star text-yellow-500 text-xs"></i>{Number(v).toFixed(1)} ({r.rating_count})</span> : '-' },

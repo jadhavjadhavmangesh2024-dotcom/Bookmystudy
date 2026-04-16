@@ -55,6 +55,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const register = async (data: any) => {
     const res: any = await api.auth.register(data);
+    // Owner accounts need approval - no token is issued
+    if (res.data?.pending_approval) {
+      // Return the pending info so the UI can show a message
+      throw Object.assign(new Error('PENDING_APPROVAL'), { pending_approval: true, message: res.message });
+    }
     localStorage.setItem('abhyasika_token', res.data.token);
     setToken(res.data.token);
     setUser(res.data.user);
