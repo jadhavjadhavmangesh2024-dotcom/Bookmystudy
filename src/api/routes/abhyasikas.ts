@@ -192,35 +192,90 @@ abhyasikas.get('/:id/analytics', authMiddleware, requireOwner(), async (c) => {
     if (check.notFound) return c.json(errorResponse('Abhyasika not found'), 404);
     if (!check.ok) return c.json(errorResponse('You can only view analytics for your own abhyasikas'), 403);
 
-    const [stats, recentBookings, monthlyRevenue] = await Promise.all([
+    const [stats, recentBookings, monthlyRevenue, weeklyRevenue, seatRevenue, bookingTypes, todayStats] = await Promise.all([
       db.prepare(`
         SELECT
           COUNT(*) as total_bookings,
           COALESCE(SUM(total_amount), 0) as total_revenue,
-          COALESCE(AVG(total_amount), 0) as avg_booking_value,
+          COALESCE(SUM(CASE WHEN status IN ('confirmed','completed') THEN total_amount ELSE 0 END), 0) as confirmed_revenue,
+          COALESCE(AVG(CASE WHEN status IN ('confirmed','completed') THEN total_amount END), 0) as avg_booking_value,
           COUNT(CASE WHEN status = 'confirmed' THEN 1 END) as active_bookings,
-          COUNT(CASE WHEN status = 'cancelled' THEN 1 END) as cancelled_bookings
+          COUNT(CASE WHEN status = 'completed' THEN 1 END) as completed_bookings,
+          COUNT(CASE WHEN status = 'cancelled' THEN 1 END) as cancelled_bookings,
+          COUNT(CASE WHEN created_at >= date('now','-30 days') THEN 1 END) as this_month_bookings,
+          COALESCE(SUM(CASE WHEN created_at >= date('now','-30 days') AND status IN ('confirmed','completed') THEN total_amount ELSE 0 END), 0) as this_month_revenue,
+          COUNT(CASE WHEN created_at >= date('now','-7 days') THEN 1 END) as this_week_bookings
         FROM bookings WHERE abhyasika_id = ?
       `).bind(id).first(),
       db.prepare(`
-        SELECT b.*, u.first_name, u.last_name, s.seat_number
+        SELECT b.id, b.booking_number, b.booking_type, b.start_date, b.end_date,
+               b.total_amount, b.status, b.created_at,
+               u.first_name, u.last_name, u.email, u.phone,
+               s.seat_number
         FROM bookings b
         JOIN users u ON u.id = b.student_id
         JOIN seats s ON s.id = b.seat_id
         WHERE b.abhyasika_id = ?
-        ORDER BY b.created_at DESC LIMIT 10
+        ORDER BY b.created_at DESC LIMIT 20
       `).bind(id).all(),
       db.prepare(`
-        SELECT strftime('%Y-%m', created_at) as month, SUM(total_amount) as revenue, COUNT(*) as bookings
+        SELECT strftime('%Y-%m', created_at) as month,
+               SUM(CASE WHEN status IN ('confirmed','completed') THEN total_amount ELSE 0 END) as revenue,
+               COUNT(*) as bookings,
+               COUNT(CASE WHEN status = 'cancelled' THEN 1 END) as cancellations
         FROM bookings WHERE abhyasika_id = ?
         GROUP BY month ORDER BY month DESC LIMIT 12
-      `).bind(id).all()
+      `).bind(id).all(),
+      db.prepare(`
+        SELECT strftime('%Y-%W', created_at) as week,
+               SUM(CASE WHEN status IN ('confirmed','completed') THEN total_amount ELSE 0 END) as revenue,
+               COUNT(*) as bookings
+        FROM bookings WHERE abhyasika_id = ? AND created_at >= date('now','-12 weeks')
+        GROUP BY week ORDER BY week DESC LIMIT 12
+      `).bind(id).all(),
+      db.prepare(`
+        SELECT s.seat_number, sc.name as category_name,
+               COUNT(b.id) as total_bookings,
+               COALESCE(SUM(CASE WHEN b.status IN ('confirmed','completed') THEN b.total_amount ELSE 0 END),0) as revenue
+        FROM seats s
+        LEFT JOIN bookings b ON b.seat_id = s.id AND b.abhyasika_id = ?
+        LEFT JOIN seat_categories sc ON sc.id = s.category_id
+        WHERE s.abhyasika_id = ?
+        GROUP BY s.id ORDER BY revenue DESC LIMIT 10
+      `).bind(id, id).all(),
+      db.prepare(`
+        SELECT booking_type,
+               COUNT(*) as count,
+               COALESCE(SUM(CASE WHEN status IN ('confirmed','completed') THEN total_amount ELSE 0 END),0) as revenue
+        FROM bookings WHERE abhyasika_id = ?
+        GROUP BY booking_type
+      `).bind(id).all(),
+      db.prepare(`
+        SELECT
+          COUNT(CASE WHEN DATE(created_at) = DATE('now') THEN 1 END) as today_bookings,
+          COALESCE(SUM(CASE WHEN DATE(created_at) = DATE('now') AND status IN ('confirmed','completed') THEN total_amount ELSE 0 END),0) as today_revenue
+        FROM bookings WHERE abhyasika_id = ?
+      `).bind(id).first()
     ]);
 
+    // Platform fee (10%)
+    const confirmedRevenue = (stats as any)?.confirmed_revenue || 0;
+    const platformFee = confirmedRevenue * 0.10;
+    const ownerEarnings = confirmedRevenue * 0.90;
+
     return c.json(successResponse({
-      stats,
+      stats: {
+        ...(stats as any),
+        platform_fee: platformFee,
+        owner_earnings: ownerEarnings,
+        today_bookings: (todayStats as any)?.today_bookings || 0,
+        today_revenue: (todayStats as any)?.today_revenue || 0,
+      },
       recent_bookings: recentBookings.results,
-      monthly_revenue: monthlyRevenue.results
+      monthly_revenue: monthlyRevenue.results,
+      weekly_revenue: weeklyRevenue.results,
+      seat_revenue: seatRevenue.results,
+      booking_types: bookingTypes.results
     }));
   } catch (err: any) {
     return c.json(errorResponse(err.message || 'Failed to fetch analytics'), 500);

@@ -117,6 +117,9 @@ export const api = {
     payouts: () => request('GET', '/admin/payouts'),
     tickets: (p?: any) => request('GET', '/admin/support-tickets', undefined, p),
     broadcast: (d: any) => request('POST', '/admin/broadcast-notification', d),
+    resetUserPassword: (id: any, d: any) => request('POST', `/admin/users/${id}/reset-password`, d),
+    deleteUser: (id: any) => request('DELETE', `/admin/users/${id}`),
+    getUserDetails: (id: any) => request('GET', `/admin/users/${id}/details`),
   },
 
   reviews: {

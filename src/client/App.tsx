@@ -5,6 +5,8 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 // Auth Pages
 import LoginPage from './pages/auth/LoginPage';
 import RegisterPage from './pages/auth/RegisterPage';
+import ForgotPasswordPage from './pages/auth/ForgotPasswordPage';
+import ResetPasswordPage from './pages/auth/ResetPasswordPage';
 
 // Public Pages
 import HomePage from './pages/HomePage';
@@ -69,6 +71,8 @@ function AppRoutes() {
         <Route path="/abhyasika/:id" element={<AbhyasikaDetailPage />} />
         <Route path="/login" element={user ? <Navigate to={`/${user.role === 'super_admin' ? 'admin' : user.role}`} replace /> : <LoginPage />} />
         <Route path="/register" element={user ? <Navigate to="/" replace /> : <RegisterPage />} />
+        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+        <Route path="/reset-password" element={<ResetPasswordPage />} />
 
         {/* Student Routes */}
         <Route path="/student" element={<ProtectedRoute roles={['student']}><StudentDashboard /></ProtectedRoute>} />

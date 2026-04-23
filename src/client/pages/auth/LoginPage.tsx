@@ -14,7 +14,7 @@ export default function LoginPage() {
   const DEMO_ACCOUNTS = [
     { role: 'Student', email: 'student1@example.com', password: 'any', color: 'bg-emerald-50 border-emerald-200 text-emerald-700', icon: 'fa-graduation-cap', iconBg: 'bg-emerald-100' },
     { role: 'Owner', email: 'owner1@example.com', password: 'any', color: 'bg-blue-50 border-blue-200 text-blue-700', icon: 'fa-building', iconBg: 'bg-blue-100' },
-    { role: 'Admin', email: 'admin@bookmystudy.in', password: 'any', color: 'bg-purple-50 border-purple-200 text-purple-700', icon: 'fa-crown', iconBg: 'bg-purple-100' },
+    { role: 'Admin', email: 'admin@abhyasika.in', password: 'any', color: 'bg-purple-50 border-purple-200 text-purple-700', icon: 'fa-crown', iconBg: 'bg-purple-100' },
   ];
 
   const handleSubmit = async (e: React.FormEvent) => {

@@ -3,7 +3,7 @@
 // ============================================================
 import { Hono } from 'hono';
 import { authMiddleware, requireAdmin } from '../middleware/auth';
-import { generateUUID, successResponse, errorResponse, paginationMeta } from '../utils/helpers';
+import { generateUUID, hashPassword, successResponse, errorResponse, paginationMeta } from '../utils/helpers';
 
 const admin = new Hono<{ Bindings: { DB: D1Database } }>();
 
@@ -519,6 +519,99 @@ admin.post('/broadcast-notification', authMiddleware, requireAdmin(), async (c) 
     return c.json(successResponse({ sent_to: users.results.length }, 'Notification sent'));
   } catch (err: any) {
     return c.json(errorResponse(err.message || 'Failed to send notification'), 500);
+  }
+});
+
+// POST /api/admin/users/:id/reset-password - Admin resets a user's password
+admin.post('/users/:id/reset-password', authMiddleware, requireAdmin(), async (c) => {
+  try {
+    const id = c.req.param('id');
+    const { new_password } = await c.req.json();
+    const db = c.env.DB;
+
+    if (!new_password || new_password.length < 6) {
+      return c.json(errorResponse('Password must be at least 6 characters'), 400);
+    }
+
+    const user = await db.prepare('SELECT id, email, first_name FROM users WHERE id = ?').bind(id).first() as any;
+    if (!user) return c.json(errorResponse('User not found'), 404);
+
+    const passwordHash = hashPassword(new_password);
+    await db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').bind(passwordHash, id).run();
+    await db.prepare('DELETE FROM user_sessions WHERE user_id = ?').bind(id).run();
+
+    await db.prepare(`
+      INSERT INTO notifications (user_id, type, title, message)
+      VALUES (?, 'password_reset', 'Password Reset by Admin', 'Your password has been reset by the administrator. Please login with your new password.')
+    `).bind(id).run();
+
+    return c.json(successResponse(null, `Password reset for ${user.first_name} (${user.email})`));
+  } catch (err: any) {
+    return c.json(errorResponse(err.message || 'Failed to reset password'), 500);
+  }
+});
+
+// DELETE /api/admin/users/:id - Permanently delete a user
+admin.delete('/users/:id', authMiddleware, requireAdmin(), async (c) => {
+  try {
+    const id = c.req.param('id');
+    const db = c.env.DB;
+
+    const user = await db.prepare('SELECT id, email, role FROM users WHERE id = ?').bind(id).first() as any;
+    if (!user) return c.json(errorResponse('User not found'), 404);
+    if (user.role === 'super_admin') return c.json(errorResponse('Cannot delete admin account'), 403);
+
+    await db.prepare('DELETE FROM user_sessions WHERE user_id = ?').bind(id).run();
+    await db.prepare('DELETE FROM notifications WHERE user_id = ?').bind(id).run();
+    await db.prepare('DELETE FROM password_resets WHERE user_id = ?').bind(id).run();
+
+    if (user.role === 'student') {
+      await db.prepare('DELETE FROM student_profiles WHERE user_id = ?').bind(id).run();
+      await db.prepare(`UPDATE bookings SET status = 'cancelled', cancellation_reason = 'Account deleted' WHERE student_id = ? AND status NOT IN ('completed','cancelled')`).bind(id).run();
+    }
+    if (user.role === 'owner') {
+      await db.prepare('DELETE FROM owner_profiles WHERE user_id = ?').bind(id).run();
+      await db.prepare(`UPDATE abhyasikas SET is_active = 0, status = 'rejected' WHERE owner_id = ?`).bind(id).run();
+    }
+
+    await db.prepare('DELETE FROM users WHERE id = ?').bind(id).run();
+    return c.json(successResponse(null, `User account (${user.email}) permanently deleted`));
+  } catch (err: any) {
+    return c.json(errorResponse(err.message || 'Failed to delete user'), 500);
+  }
+});
+
+// GET /api/admin/users/:id/details - Get detailed user profile for admin
+admin.get('/users/:id/details', authMiddleware, requireAdmin(), async (c) => {
+  try {
+    const id = c.req.param('id');
+    const db = c.env.DB;
+
+    const user = await db.prepare(`
+      SELECT u.id, u.uuid, u.email, u.phone, u.first_name, u.last_name, u.role,
+        u.is_active, u.is_verified, u.created_at, u.last_login_at, u.avatar_url,
+        op.business_name, op.pan_number, op.gst_number
+      FROM users u
+      LEFT JOIN student_profiles sp ON sp.user_id = u.id
+      LEFT JOIN owner_profiles op ON op.user_id = u.id
+      WHERE u.id = ?
+    `).bind(id).first() as any;
+
+    if (!user) return c.json(errorResponse('User not found'), 404);
+
+    const bookings = await db.prepare(`SELECT COUNT(*) as total, COALESCE(SUM(total_amount),0) as revenue FROM bookings WHERE student_id = ?`).bind(id).first() as any;
+    const listings = await db.prepare(`SELECT COUNT(*) as total FROM abhyasikas WHERE owner_id = ?`).bind(id).first() as any;
+
+    return c.json(successResponse({
+      user,
+      stats: {
+        total_bookings: bookings?.total || 0,
+        total_spent: bookings?.revenue || 0,
+        total_listings: listings?.total || 0
+      }
+    }, 'User details'));
+  } catch (err: any) {
+    return c.json(errorResponse(err.message || 'Failed to get user details'), 500);
   }
 });
 
