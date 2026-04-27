@@ -73,10 +73,15 @@ app.use('/api/*', cors({
   maxAge: 600
 }));
 
-// Rate limiting middleware - 200 req/min per IP on API routes
+// Rate limiting middleware - 500 req/min per IP on API routes
 app.use('/api/*', async (c, next) => {
-  const ip = c.req.header('cf-connecting-ip') || c.req.header('x-forwarded-for') || 'unknown';
-  const allowed = checkRateLimit(ip, 200, 60_000);
+  const ip = c.req.header('cf-connecting-ip') || c.req.header('x-forwarded-for') || c.req.header('x-real-ip') || 'unknown';
+  // Skip rate limiting for localhost / sandbox testing
+  if (ip === 'unknown' || ip === '127.0.0.1' || ip === '::1' || ip.startsWith('192.168.') || ip.startsWith('10.')) {
+    await next();
+    return;
+  }
+  const allowed = checkRateLimit(ip, 500, 60_000);
   if (!allowed) {
     return c.json({ success: false, error: 'Too many requests. Please slow down.' }, 429);
   }

@@ -156,6 +156,28 @@ abhyasikas.get('/featured', async (c) => {
   }
 });
 
+// GET /api/abhyasikas/my-listings  (alias – also works without /owner/ prefix)
+abhyasikas.get('/my-listings', authMiddleware, requireOwner(), async (c) => {
+  try {
+    const user = c.get('user') as AuthUser;
+    const db = c.env.DB;
+    const listings = await db.prepare(`
+      SELECT a.*, c.name as city_name, l.name as locality_name,
+        (SELECT url FROM abhyasika_photos WHERE abhyasika_id = a.id AND is_primary = 1 LIMIT 1) as primary_photo,
+        (SELECT COUNT(*) FROM seats WHERE abhyasika_id = a.id AND is_active = 1) as total_seats,
+        (SELECT COUNT(*) FROM bookings WHERE abhyasika_id = a.id AND status = 'confirmed') as active_bookings
+      FROM abhyasikas a
+      LEFT JOIN cities c ON c.id = a.city_id
+      LEFT JOIN localities l ON l.id = a.locality_id
+      WHERE a.owner_id = ?
+      ORDER BY a.created_at DESC
+    `).bind(user.id).all();
+    return c.json(successResponse(listings.results, 'My listings'));
+  } catch (err: any) {
+    return c.json(errorResponse(err.message || 'Failed to fetch listings'), 500);
+  }
+});
+
 // GET /api/abhyasikas/owner/my-listings  ← MUST be BEFORE /:id
 abhyasikas.get('/owner/my-listings', authMiddleware, requireOwner(), async (c) => {
   try {

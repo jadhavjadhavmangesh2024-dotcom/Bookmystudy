@@ -10,7 +10,10 @@ const auth = new Hono<{ Bindings: { DB: D1Database } }>();
 auth.post('/register', async (c) => {
   try {
     const body = await c.req.json();
-    const { email, phone, password, first_name, last_name, role = 'student' } = body;
+    // Accept both snake_case (first_name) and camelCase (firstName) field names
+    const first_name = body.first_name || body.firstName;
+    const last_name = body.last_name || body.lastName;
+    const { email, phone, password, role = 'student' } = body;
 
     if (!email || !password || !first_name || !last_name) {
       return c.json(errorResponse('Missing required fields'), 400);

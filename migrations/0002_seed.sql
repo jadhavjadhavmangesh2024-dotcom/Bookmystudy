@@ -81,19 +81,19 @@ INSERT OR IGNORE INTO platform_settings (key, value, value_type, description, ca
 INSERT OR IGNORE INTO commission_settings (commission_type, commission_value, is_active, effective_from) VALUES
 ('percentage', 10, 1, '2024-01-01');
 
--- ADMIN USER (password: Admin@123)
+-- ADMIN USER (password: demo123 - any password accepted in demo mode)
 INSERT OR IGNORE INTO users (uuid, email, phone, password_hash, first_name, last_name, role, is_verified, is_active) VALUES
-('admin-uuid-001', 'admin@abhyasika.in', '+919999000001', '$2a$10$xJwLZy8LiXBP5fON6EFByOuJXfQFGD/J9K5TtXlHaM8F9CL0bkbLq', 'Super', 'Admin', 'super_admin', 1, 1);
+('admin-uuid-001', 'admin@abhyasika.in', '+919999000001', 'demo_hash', 'Super', 'Admin', 'super_admin', 1, 1);
 
--- SAMPLE OWNER (password: Owner@123)  
+-- SAMPLE OWNER (password: demo123 - any password accepted in demo mode)
 INSERT OR IGNORE INTO users (uuid, email, phone, password_hash, first_name, last_name, role, is_verified, is_active) VALUES
-('owner-uuid-001', 'owner1@example.com', '+919999000002', '$2a$10$xJwLZy8LiXBP5fON6EFByOuJXfQFGD/J9K5TtXlHaM8F9CL0bkbLq', 'Rajesh', 'Sharma', 'owner', 1, 1),
-('owner-uuid-002', 'owner2@example.com', '+919999000003', '$2a$10$xJwLZy8LiXBP5fON6EFByOuJXfQFGD/J9K5TtXlHaM8F9CL0bkbLq', 'Priya', 'Patel', 'owner', 1, 1);
+('owner-uuid-001', 'owner1@example.com', '+919999000002', 'demo_hash', 'Rajesh', 'Sharma', 'owner', 1, 1),
+('owner-uuid-002', 'owner2@example.com', '+919999000003', 'demo_hash', 'Priya', 'Patel', 'owner', 1, 1);
 
--- SAMPLE STUDENT (password: Student@123)
+-- SAMPLE STUDENT (password: demo123 - any password accepted in demo mode)
 INSERT OR IGNORE INTO users (uuid, email, phone, password_hash, first_name, last_name, role, is_verified, is_active) VALUES
-('student-uuid-001', 'student1@example.com', '+919999000004', '$2a$10$xJwLZy8LiXBP5fON6EFByOuJXfQFGD/J9K5TtXlHaM8F9CL0bkbLq', 'Amit', 'Kumar', 'student', 1, 1),
-('student-uuid-002', 'student2@example.com', '+919999000005', '$2a$10$xJwLZy8LiXBP5fON6EFByOuJXfQFGD/J9K5TtXlHaM8F9CL0bkbLq', 'Sneha', 'Desai', 'student', 1, 1);
+('student-uuid-001', 'student1@example.com', '+919999000004', 'demo_hash', 'Amit', 'Kumar', 'student', 1, 1),
+('student-uuid-002', 'student2@example.com', '+919999000005', 'demo_hash', 'Sneha', 'Desai', 'student', 1, 1);
 
 -- SAMPLE ABHYASIKAS
 INSERT OR IGNORE INTO abhyasikas (uuid, owner_id, name, slug, description, tagline, city_id, locality_id, address, pincode, latitude, longitude, phone, email, status, total_seats, available_seats, rating_avg, rating_count, opening_time, closing_time) VALUES

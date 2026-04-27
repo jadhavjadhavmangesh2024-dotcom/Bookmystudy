@@ -502,21 +502,36 @@ admin.post('/broadcast-notification', authMiddleware, requireAdmin(), async (c) 
     const { title, message, target_roles, channel = 'app' } = await c.req.json();
     const db = c.env.DB;
 
-    let userQuery = 'SELECT id FROM users WHERE is_active = 1';
-    if (target_roles && target_roles !== 'all') {
-      userQuery += ` AND role IN (${target_roles.split(',').map(() => '?').join(',')})`;
+    let users;
+    if (!target_roles || target_roles === 'all' || (Array.isArray(target_roles) && target_roles.length === 0)) {
+      // Send to all active users
+      users = await db.prepare('SELECT id FROM users WHERE is_active = 1').all();
+    } else {
+      // target_roles can be an array like ["student","owner"] OR a comma-separated string like "student,owner"
+      const roles = Array.isArray(target_roles)
+        ? target_roles.map((r: string) => r.trim()).filter(Boolean)
+        : target_roles.split(',').map((r: string) => r.trim()).filter(Boolean);
+      if (roles.length === 1) {
+        users = await db.prepare('SELECT id FROM users WHERE is_active = 1 AND role = ?').bind(roles[0]).all();
+      } else if (roles.length === 2) {
+        users = await db.prepare('SELECT id FROM users WHERE is_active = 1 AND role IN (?, ?)').bind(roles[0], roles[1]).all();
+      } else if (roles.length >= 3) {
+        users = await db.prepare('SELECT id FROM users WHERE is_active = 1 AND role IN (?, ?, ?)').bind(roles[0], roles[1], roles[2]).all();
+      } else {
+        users = await db.prepare('SELECT id FROM users WHERE is_active = 1').all();
+      }
     }
 
-    const users = await db.prepare(userQuery).all();
-    
+    let sentCount = 0;
     for (const user of users.results as any[]) {
       await db.prepare(`
         INSERT INTO notifications (user_id, type, title, message, channel)
         VALUES (?, 'broadcast', ?, ?, ?)
       `).bind(user.id, title, message, channel).run();
+      sentCount++;
     }
 
-    return c.json(successResponse({ sent_to: users.results.length }, 'Notification sent'));
+    return c.json(successResponse({ sent_to: sentCount }, `Notification sent to ${sentCount} users`));
   } catch (err: any) {
     return c.json(errorResponse(err.message || 'Failed to send notification'), 500);
   }

@@ -29,6 +29,44 @@ async function verifySeatOwner(db: D1Database, seatId: string | number, userId: 
   return { ok: true };
 }
 
+// GET /api/seats  - Public: list seats, optionally filtered by ?abhyasika_id=X
+seats.get('/', async (c) => {
+  try {
+    const abhyasika_id = c.req.query('abhyasika_id');
+    const db = c.env.DB;
+    let query = `SELECT s.*, sc.name as category_name, sc.daily_price, sc.monthly_price
+      FROM seats s LEFT JOIN seat_categories sc ON sc.id = s.category_id
+      WHERE s.is_active = 1`;
+    const binds: any[] = [];
+    if (abhyasika_id) { query += ' AND s.abhyasika_id = ?'; binds.push(abhyasika_id); }
+    query += ' ORDER BY s.seat_number LIMIT 100';
+    const seats_result = binds.length ? await db.prepare(query).bind(...binds).all() : await db.prepare(query).all();
+    return c.json({ success: true, message: 'Seats', data: seats_result.results });
+  } catch (err: any) {
+    return c.json({ success: false, message: err.message || 'Failed to fetch seats' }, 500);
+  }
+});
+
+// GET /api/seats/categories  - Public: seat categories, filtered by ?abhyasika_id=X
+seats.get('/categories', async (c) => {
+  try {
+    const abhyasika_id = c.req.query('abhyasika_id');
+    if (!abhyasika_id) return c.json({ success: false, message: 'abhyasika_id required' }, 400);
+    const db = c.env.DB;
+    const categories = await db.prepare(`
+      SELECT sc.*, COUNT(s.id) as total_seats,
+        COUNT(CASE WHEN s.status = 'available' AND s.is_active = 1 THEN 1 END) as available_seats
+      FROM seat_categories sc
+      LEFT JOIN seats s ON s.category_id = sc.id AND s.is_active = 1
+      WHERE sc.abhyasika_id = ?
+      GROUP BY sc.id ORDER BY sc.name
+    `).bind(abhyasika_id).all();
+    return c.json({ success: true, message: 'Seat categories', data: categories.results });
+  } catch (err: any) {
+    return c.json({ success: false, message: err.message || 'Failed to fetch categories' }, 500);
+  }
+});
+
 // GET /api/seats/abhyasika/:abhyasikaId - Public: seats for a specific abhyasika
 seats.get('/abhyasika/:abhyasikaId', async (c) => {
   try {

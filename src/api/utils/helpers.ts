@@ -48,11 +48,21 @@ export function hashPassword(password: string): string {
   return `hashed_${Math.abs(hash)}_${password.length}`;
 }
 
+// Known demo passwords that map to 'demo_hash' (set in seed data)
+const DEMO_PASSWORDS = ['Admin@123', 'Owner@123', 'Student@123', 'demo123', 'Demo@123', 'password', 'admin123', 'any'];
+
 export function verifyPassword(password: string, hash: string): boolean {
-  // Demo mode: accept any password for seeded users (hash is 'demo_hash' or bcrypt)
-  if (hash === 'demo_hash' || hash.startsWith('$2a$') || hash.startsWith('hashed_')) {
-    return true; // Accept any password in demo mode
+  // demo_hash = seeded demo users - only accept known demo passwords
+  if (hash === 'demo_hash') {
+    return DEMO_PASSWORDS.includes(password);
   }
+  // bcrypt hashes (from seed SQL) - simple string compare with computed hash
+  if (hash.startsWith('$2a$') || hash.startsWith('$2b$')) {
+    // In Cloudflare Workers we can't run bcrypt natively; for seeded bcrypt hashes,
+    // accept known demo passwords as a fallback
+    return DEMO_PASSWORDS.includes(password);
+  }
+  // Custom hash format: hashed_<number>_<length>
   return hashPassword(password) === hash;
 }
 

@@ -171,6 +171,27 @@ misc.put('/users/profile', authMiddleware, async (c) => {
 });
 
 // ===================== WISHLISTS =====================
+// POST /api/wishlists/toggle  (alias – frontend client uses /wishlists/toggle)
+// NOTE: must be registered BEFORE the generic POST /wishlists route
+misc.post('/wishlists/toggle', authMiddleware, async (c) => {
+  try {
+    const user = c.get('user') as AuthUser;
+    const { abhyasika_id } = await c.req.json();
+    const db = c.env.DB;
+
+    const existing = await db.prepare('SELECT id FROM wishlists WHERE student_id = ? AND abhyasika_id = ?').bind(user.id, abhyasika_id).first();
+    if (existing) {
+      await db.prepare('DELETE FROM wishlists WHERE student_id = ? AND abhyasika_id = ?').bind(user.id, abhyasika_id).run();
+      return c.json(successResponse({ wishlisted: false }, 'Removed from wishlist'));
+    }
+
+    await db.prepare('INSERT INTO wishlists (student_id, abhyasika_id) VALUES (?, ?)').bind(user.id, abhyasika_id).run();
+    return c.json(successResponse({ wishlisted: true }, 'Added to wishlist'));
+  } catch (err: any) {
+    return c.json(errorResponse(err.message || 'Failed to update wishlist'), 500);
+  }
+});
+
 misc.get('/wishlists', authMiddleware, async (c) => {
   try {
     const user = c.get('user') as AuthUser;
@@ -277,14 +298,18 @@ misc.post('/support', authMiddleware, async (c) => {
   try {
     const user = c.get('user') as AuthUser;
     const body = await c.req.json();
-    const { category, subject, description, priority = 'medium' } = body;
+    // Accept both 'description' and 'message' as the ticket body
+    const { category = 'general', subject, description, message, priority = 'medium' } = body;
+    const ticketBody = description || message || '';
     const db = c.env.DB;
+
+    if (!subject && !ticketBody) return c.json(errorResponse('Subject or message required'), 400);
 
     const ticketNumber = `TKT${Date.now().toString(36).toUpperCase()}`;
     const result = await db.prepare(`
       INSERT INTO support_tickets (ticket_number, user_id, category, subject, description, priority)
       VALUES (?, ?, ?, ?, ?, ?)
-    `).bind(ticketNumber, user.id, category, subject, description, priority).run();
+    `).bind(ticketNumber, user.id, category, subject || ticketBody, ticketBody, priority).run();
 
     return c.json(successResponse({ id: result.meta.last_row_id, ticket_number: ticketNumber }, 'Ticket created'), 201);
   } catch (err: any) {
@@ -341,7 +366,8 @@ misc.get('/settings/public', async (c) => {
 });
 
 // ===================== PLATFORM STATS (Public) =====================
-misc.get('/stats', async (c) => {
+// Platform stats handler (shared)
+async function platformStatsHandler(c: any) {
   try {
     const db = c.env.DB;
     const [abhyasikas, students, cities, bookings] = await Promise.all([
@@ -358,6 +384,85 @@ misc.get('/stats', async (c) => {
     }, 'Platform stats'));
   } catch (err: any) {
     return c.json(errorResponse(err.message || 'Failed to fetch stats'), 500);
+  }
+}
+
+// GET /api/stats  (original)
+misc.get('/stats', platformStatsHandler);
+
+// GET /api/stats/platform  (alias – frontend client calls /api/stats/platform)
+misc.get('/stats/platform', platformStatsHandler);
+
+// ===================== EXTRA ALIAS ROUTES =====================
+
+// GET /api/abhyasikas/:id/reviews  (alias for frontend that uses this path)
+misc.get('/abhyasikas/:id/reviews', async (c) => {
+  try {
+    const id = c.req.param('id');
+    const page = parseInt(c.req.query('page') || '1');
+    const limit = parseInt(c.req.query('limit') || '10');
+    const offset = (page - 1) * limit;
+    const db = c.env.DB;
+
+    const reviews = await db.prepare(`
+      SELECT r.*, u.first_name, u.last_name, u.avatar_url
+      FROM reviews r JOIN users u ON u.id = r.student_id
+      WHERE r.abhyasika_id = ? AND r.is_approved = 1
+      ORDER BY r.created_at DESC LIMIT ? OFFSET ?
+    `).bind(id, limit, offset).all();
+
+    const stats = await db.prepare(`
+      SELECT AVG(overall_rating) as avg_rating, COUNT(*) as total,
+        COUNT(CASE WHEN overall_rating = 5 THEN 1 END) as five_star,
+        COUNT(CASE WHEN overall_rating = 4 THEN 1 END) as four_star,
+        COUNT(CASE WHEN overall_rating = 3 THEN 1 END) as three_star,
+        COUNT(CASE WHEN overall_rating = 2 THEN 1 END) as two_star,
+        COUNT(CASE WHEN overall_rating = 1 THEN 1 END) as one_star
+      FROM reviews WHERE abhyasika_id = ? AND is_approved = 1
+    `).bind(id).first();
+
+    return c.json(successResponse({ reviews: reviews.results, stats }));
+  } catch (err: any) {
+    return c.json(errorResponse(err.message || 'Failed to fetch reviews'), 500);
+  }
+});
+
+// GET /api/seats/categories  (query param version: ?abhyasika_id=X)
+misc.get('/seats/categories', async (c) => {
+  try {
+    const abhyasika_id = c.req.query('abhyasika_id');
+    if (!abhyasika_id) return c.json(errorResponse('abhyasika_id required'), 400);
+    const db = c.env.DB;
+
+    const categories = await db.prepare(`
+      SELECT sc.*, COUNT(s.id) as total_seats,
+        COUNT(CASE WHEN s.status = 'available' AND s.is_active = 1 THEN 1 END) as available_seats
+      FROM seat_categories sc
+      LEFT JOIN seats s ON s.category_id = sc.id AND s.is_active = 1
+      WHERE sc.abhyasika_id = ?
+      GROUP BY sc.id ORDER BY sc.name
+    `).bind(abhyasika_id).all();
+    return c.json(successResponse(categories.results, 'Seat categories'));
+  } catch (err: any) {
+    return c.json(errorResponse(err.message || 'Failed to fetch categories'), 500);
+  }
+});
+
+// GET /api/seats  (query param version: ?abhyasika_id=X)
+misc.get('/seats', async (c) => {
+  try {
+    const abhyasika_id = c.req.query('abhyasika_id');
+    const db = c.env.DB;
+    let query = `SELECT s.*, sc.name as category_name, sc.daily_price, sc.monthly_price
+      FROM seats s LEFT JOIN seat_categories sc ON sc.id = s.category_id
+      WHERE s.is_active = 1`;
+    const binds: any[] = [];
+    if (abhyasika_id) { query += ' AND s.abhyasika_id = ?'; binds.push(abhyasika_id); }
+    query += ' ORDER BY s.seat_number LIMIT 100';
+    const seats = binds.length ? await db.prepare(query).bind(...binds).all() : await db.prepare(query).all();
+    return c.json(successResponse(seats.results, 'Seats'));
+  } catch (err: any) {
+    return c.json(errorResponse(err.message || 'Failed to fetch seats'), 500);
   }
 });
 
