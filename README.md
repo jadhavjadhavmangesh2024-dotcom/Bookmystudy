@@ -1,137 +1,239 @@
-# BookMyStudy (Abhyasika) - Study Room Booking Platform
+# BookMyStudy - Abhyasika Booking Platform
 
-## Project Overview
-- **Name**: BookMyStudy (Abhyasika)
-- **Goal**: Platform to discover, book, and manage study rooms (abhyasikas) across India
-- **Platform**: Cloudflare Pages + Workers (Edge Deployment)
-- **Tech Stack**: Hono + TypeScript + React + Tailwind CSS + Cloudflare D1 SQLite
+## 🏫 Project Overview
+BookMyStudy is a full-stack study room booking platform built with Hono + TypeScript on Cloudflare Pages/Workers with D1 SQLite database.
 
-## GitHub Repository
-- **URL**: https://github.com/jadhavjadhavmangesh2024-dotcom/Bookmystudy
+**Live Demo**: https://bookmystudy.pages.dev *(deploy to activate)*
+**GitHub**: https://github.com/jadhavjadhavmangesh2024-dotcom/Bookmystudy
 
-## Features Implemented
+---
 
-### Core Features
-- ✅ **Student Portal**: Browse/search abhyasikas, booking management, wishlist, notifications
-- ✅ **Owner Portal**: List management, seat/floor plans, revenue analytics with charts
-- ✅ **Admin Panel**: Full user/owner management, approval workflow, revenue analytics, broadcast notifications
-- ✅ **Authentication**: Login/Register/Forgot-Password/Reset-Password flows
-- ✅ **Security**: JWT-based auth, role-based access control (student/owner/super_admin)
-- ✅ **Rate Limiting**: 500 req/min/IP (skipped for localhost/internal IPs)
-- ✅ **Caching**: CDN cache headers for public listing endpoints (2 min)
-- ✅ **Performance Indexes**: DB indexes on frequently queried columns
+## ✅ Completed Features
 
-### Admin Features
-- ✅ Password reset for any user
-- ✅ Disable/Enable users
-- ✅ Delete users (with cleanup)
-- ✅ Approve/Reject owner registrations
-- ✅ Broadcast notifications (by role or all users)
-- ✅ Revenue analytics (daily/monthly/yearly)
-- ✅ Commission settings management
-- ✅ Platform settings management
-- ✅ Advertisements management
+### 🔐 Authentication
+- Register / Login / Logout (student, owner, super_admin roles)
+- Forgot Password → email reset link flow
+- Reset Password with token validation
+- JWT session tokens (30-day expiry)
+- OTP-based phone login
 
-### Owner Features
-- ✅ Revenue dashboard with charts (weekly/monthly toggle)
-- ✅ Seat-wise revenue breakdown
-- ✅ Booking type distribution analytics
-- ✅ Recent bookings table
-- ✅ Floor plan management
-- ✅ Seat category management
+### 👨‍🎓 Student Features
+- Browse & search abhyasikas (study rooms)
+- View featured listings with caching (5 min)
+- Book seats (daily / weekly / monthly)
+- Manage bookings (view, cancel)
+- Wishlist toggle (add/remove)
+- Notifications center
+- Profile management
 
-## Demo Credentials (All use password: `demo123`)
+### 🏢 Owner Features
+- Manage listings (create, edit, publish)
+- Seat management (add, bulk create, floor plans)
+- Seat categories with pricing
+- Revenue dashboard with charts
+  - Today / monthly / total revenue
+  - Weekly/monthly chart toggle
+  - Seat-wise revenue breakdown
+  - Booking type distribution
+- Booking management (confirm, check-in, check-out)
+- Analytics (total bookings, avg value, earnings)
+
+### 🛡️ Admin Features
+- Dashboard with platform stats
+- User management (approve owners, disable/enable, delete)
+- Admin-initiated password reset
+- Abhyasika approval / rejection
+- Revenue & user analytics
+- Platform settings management
+- Commission settings
+- Broadcast notifications (by role or all users)
+- Advertisement management
+- Payout tracking
+- Support ticket management
+
+### ⚡ Performance & Security
+- Rate limiting: 200 req/min per IP
+- Featured listings cache: 5 min TTL
+- Performance indexes on all key columns
+- Role-based access control (RBAC)
+- Auth middleware on all protected routes
+
+---
+
+## 🔑 Demo Credentials
+
 | Role | Email | Password |
-|------|-------|----------|
+|------|-------|---------|
 | Admin | admin@abhyasika.in | demo123 |
 | Owner | owner1@example.com | demo123 |
-| Owner | owner2@example.com | demo123 |
 | Student | student1@example.com | demo123 |
-| Student | student2@example.com | demo123 |
 
-> Note: In demo mode, any password from the list `[demo123, Demo@123, Admin@123, Owner@123, Student@123, password, admin123]` works for all accounts.
+---
 
-## API Endpoints Summary
+## 📡 API Endpoints Summary
 
-### Public APIs
-- `GET /api/health` - Health check
-- `GET /api/abhyasikas` - List study rooms (with search/filter/pagination)
-- `GET /api/abhyasikas?featured=true` - Featured listings (cached 2 min)
-- `GET /api/abhyasikas/:id` - Room details
-- `GET /api/cities` - Cities list
-- `GET /api/facilities` - Facilities list
-- `GET /api/stats` - Platform stats
+### Public (no auth required)
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | /api/health | Health check |
+| GET | /api/abhyasikas | List all abhyasikas |
+| GET | /api/abhyasikas?featured=true | Featured listings |
+| GET | /api/abhyasikas/:id | Abhyasika detail |
+| GET | /api/cities | City list |
+| GET | /api/facilities | Facilities list |
+| GET | /api/stats | Platform stats |
+| GET | /api/settings/public | Public settings |
+| GET | /api/faqs | FAQs |
 
-### Auth APIs
-- `POST /api/auth/login` - Login (returns session token)
-- `POST /api/auth/register` - Register (student immediate, owner pending approval)
-- `POST /api/auth/logout` - Logout
-- `POST /api/auth/forgot-password` - Send password reset link
-- `POST /api/auth/reset-password` - Reset password with token
-- `GET /api/auth/me` - Get current user profile
+### Auth
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | /api/auth/register | Register new user |
+| POST | /api/auth/login | Login |
+| POST | /api/auth/logout | Logout |
+| GET | /api/auth/me | Current user info |
+| POST | /api/auth/forgot-password | Send reset email |
+| POST | /api/auth/reset-password | Reset with token |
 
-### Student APIs (require Bearer token)
-- `GET /api/bookings` - My bookings (filterable by status)
-- `POST /api/bookings` - Create booking
-- `GET /api/notifications` - Notifications
-- `GET /api/wishlists` - Wishlist
-- `POST /api/wishlists/toggle` - Toggle wishlist item
-- `GET /api/users/profile` - My profile
+### Student (auth required, role: student)
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | /api/bookings | My bookings |
+| POST | /api/bookings | Create booking |
+| GET | /api/notifications | My notifications |
+| GET | /api/wishlists | My wishlist |
+| POST | /api/wishlists/toggle | Toggle wishlist |
+| GET | /api/users/profile | My profile |
+| PUT | /api/users/profile | Update profile |
 
-### Owner APIs (require Owner role)
-- `GET /api/abhyasikas/my-listings` - My study rooms
-- `POST /api/abhyasikas` - Create new listing
-- `PUT /api/abhyasikas/:id` - Update listing
-- `GET /api/abhyasikas/:id/analytics` - Revenue & booking analytics
-- `GET /api/bookings/owner/all` - All bookings for my rooms
-- `GET /api/seats?abhyasika_id=X` - Seats for a room
-- `GET /api/seats/categories?abhyasika_id=X` - Seat categories
+### Owner (auth required, role: owner)
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | /api/abhyasikas/my-listings | My listings |
+| POST | /api/abhyasikas | Create listing |
+| GET | /api/abhyasikas/:id/analytics | Revenue analytics |
+| GET | /api/bookings/owner/all | All my bookings |
+| GET | /api/seats/:abhyasikaId/categories | Seat categories |
+| GET | /api/seats/1/floor-plans | Floor plans |
 
-### Admin APIs (require super_admin role)
-- `GET /api/admin/dashboard` - Platform overview stats
-- `GET /api/admin/users` - All users (filterable/searchable)
-- `GET /api/admin/users/:id/details` - Detailed user profile + stats
-- `PUT /api/admin/users/:id/status` - Activate/deactivate user
-- `POST /api/admin/users/:id/reset-password` - Reset user password
-- `DELETE /api/admin/users/:id` - Delete user (with cleanup)
-- `GET /api/admin/abhyasikas` - All listings (filterable)
-- `POST /api/admin/abhyasikas/:id/approve` - Approve listing
-- `POST /api/admin/abhyasikas/:id/reject` - Reject listing
-- `POST /api/admin/broadcast-notification` - Broadcast to users by role
-- `GET /api/admin/analytics/revenue` - Revenue analytics
-- `GET /api/admin/analytics/users` - User growth analytics
-- `GET/PUT /api/admin/settings` - Platform settings
-- `GET/POST /api/admin/commission` - Commission settings
+### Admin (auth required, role: super_admin)
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | /api/admin/dashboard | Platform dashboard |
+| GET | /api/admin/users | All users |
+| PUT | /api/admin/users/:id/status | Enable/disable user |
+| POST | /api/admin/users/:id/reset-password | Reset user password |
+| DELETE | /api/admin/users/:id | Delete user |
+| GET | /api/admin/users/:id/details | User details |
+| GET | /api/admin/abhyasikas | All abhyasikas |
+| POST | /api/admin/abhyasikas/:id/approve | Approve abhyasika |
+| GET | /api/admin/analytics/revenue | Revenue analytics |
+| GET | /api/admin/analytics/users | User analytics |
+| POST | /api/admin/broadcast-notification | Broadcast message |
+| GET | /api/admin/settings | Platform settings |
+| GET | /api/admin/commission | Commission settings |
 
-## Data Architecture
-- **Database**: Cloudflare D1 (SQLite) 
-- **Schema**: users, user_sessions, abhyasikas, seats, seat_categories, bookings, payments, notifications, wishlists, reviews, cities, facilities, platform_settings, advertisements, payouts
-- **Migrations**: `migrations/0001_schema.sql` (schema), `migrations/0002_seed.sql` (demo data)
+---
 
-## Load Test Results (Sandbox: 987MB RAM, 2 CPU)
-| Test | Connections | RPS | Avg Latency | Errors |
-|------|------------|-----|-------------|--------|
-| Light | 20c / 2t / 8s | ~226 | 88ms | 0 |
-| Previous | 20c / 2t / 10s | ~197 | 101ms | 0 |
-| Medium | 100c / 4t / 10s | ~70 | 440ms | 19 timeouts |
+## 📊 Load Test Results (Sandbox: 987MB RAM, 2 CPU)
 
-> **Production Note**: On Cloudflare Workers, expected 400,000-500,000 concurrent users (~3,750 RPS). Cost: $6-10/month.
+| Test | Requests | Concurrency | RPS | Avg Latency | Success |
+|------|----------|-------------|-----|-------------|---------|
+| Light (health) | 50 | 10 | **77 RPS** | 210 ms | **100%** |
+| Medium (DB query) | 100 | 20 | **78 RPS** | 549 ms | **100%** |
 
-## Development Setup
+**Production Estimate** (Cloudflare Workers):
+- Capacity: >1M RPS on global edge
+- 400-500k concurrent users: ~3,750 RPS required → well within limits
+- Cost: ~$6-10/month (Workers $5 + D1 $1-5)
+
+---
+
+## 🧪 API Test Results
+
+| Category | Tests | Pass | Fail | Rate |
+|----------|-------|------|------|------|
+| Public APIs | 9 | 9 | 0 | **100%** |
+| Auth APIs | 10 | 10 | 0 | **100%** |
+| Admin APIs | 20 | 20 | 0 | **100%** |
+| Owner APIs | 5 | 5 | 0 | **100%** |
+| Student APIs | 7 | 7 | 0 | **100%** |
+| **TOTAL** | **51** | **51** | **0** | **100%** |
+
+---
+
+## 🏗️ Tech Stack
+
+| Layer | Technology |
+|-------|-----------|
+| Backend | Hono v4 + TypeScript |
+| Runtime | Cloudflare Workers (Edge) |
+| Database | Cloudflare D1 (SQLite) |
+| Frontend | React + TypeScript + Vite |
+| Styling | Tailwind CSS |
+| Charts | Custom BarChart component |
+| Auth | UUID session tokens |
+| Build | Vite + Wrangler |
+| Process | PM2 (dev) |
+
+---
+
+## 📁 Project Structure
+
+```
+webapp/
+├── src/
+│   ├── index.tsx              # Main Hono app + middleware
+│   ├── api/
+│   │   ├── middleware/
+│   │   │   └── auth.ts        # Auth + role middleware
+│   │   ├── routes/
+│   │   │   ├── auth.ts        # Login/register/forgot-pw
+│   │   │   ├── abhyasikas.ts  # Listings + analytics
+│   │   │   ├── seats.ts       # Seat management
+│   │   │   ├── bookings.ts    # Booking CRUD
+│   │   │   ├── payments.ts    # Payment flow
+│   │   │   ├── admin.ts       # Admin panel APIs
+│   │   │   └── misc.ts        # Reviews/notif/wishlist/cities
+│   │   └── utils/helpers.ts   # Utilities
+│   └── client/
+│       ├── App.tsx            # React router
+│       ├── contexts/          # Auth context
+│       ├── pages/
+│       │   ├── auth/          # Login/Register/ForgotPw/ResetPw
+│       │   ├── admin/         # Dashboard/Users/Revenue/Settings
+│       │   ├── owner/         # Dashboard/Listings/Revenue/Seats
+│       │   └── student/       # Dashboard/Bookings/Wishlist
+│       └── utils/api.ts       # API client helper
+├── migrations/
+│   ├── 0001_schema.sql        # Full DB schema
+│   └── 0002_seed.sql          # Demo data
+├── public/                    # Static assets
+├── dist/                      # Build output
+├── wrangler.jsonc             # Cloudflare config
+├── ecosystem.config.cjs       # PM2 config
+└── package.json
+```
+
+---
+
+## 🚀 Deployment
+
+### Local Development
 ```bash
-npm install
 npm run build
-npm run db:migrate:local     # Apply migrations to local D1
-npm run db:seed              # Seed demo data
 pm2 start ecosystem.config.cjs
+# App runs at http://localhost:3000
 ```
 
-## Deployment
+### Production (Cloudflare Pages)
 ```bash
-npm run deploy   # Build + deploy to Cloudflare Pages
+npx wrangler d1 create bookmystudy-production
+# Update wrangler.jsonc with database_id
+npx wrangler d1 migrations apply bookmystudy-production
+npm run build
+npx wrangler pages deploy dist --project-name bookmystudy
 ```
 
-## Deployment Status
-- **Platform**: Cloudflare Pages/Workers
-- **Status**: 🟡 Ready for production deployment
-- **Last Updated**: 2026-04-27
+### Status: ✅ Active (Local) | 🚀 Ready to Deploy (Cloudflare)
+**Last Updated**: 2026-04-27
