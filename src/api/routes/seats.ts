@@ -93,7 +93,33 @@ seats.get('/abhyasika/:abhyasikaId', async (c) => {
   }
 });
 
-// GET /api/seats/availability/:seatId - Public: check seat availability
+// GET /api/seats/availability?abhyasika_id=X&date=Y - Public: all seats availability for an abhyasika
+// NOTE: Must come BEFORE /availability/:seatId to avoid path param matching
+seats.get('/availability', async (c) => {
+  try {
+    const abhyasika_id = c.req.query('abhyasika_id');
+    const date = c.req.query('date') || new Date().toISOString().split('T')[0];
+    if (!abhyasika_id) return c.json(errorResponse('abhyasika_id required'), 400);
+    const db = c.env.DB;
+    const seatsList = await db.prepare(`
+      SELECT s.id, s.seat_number, s.seat_label, s.status, s.is_active,
+        sc.name as category_name, sc.daily_price, sc.weekly_price, sc.monthly_price,
+        CASE WHEN b.id IS NOT NULL THEN 0 ELSE 1 END as is_available
+      FROM seats s
+      LEFT JOIN seat_categories sc ON sc.id = s.category_id
+      LEFT JOIN bookings b ON b.seat_id = s.id
+        AND b.status IN ('confirmed','pending')
+        AND b.start_date <= ? AND b.end_date >= ?
+      WHERE s.abhyasika_id = ? AND s.is_active = 1
+      ORDER BY s.seat_number
+    `).bind(date, date, abhyasika_id).all();
+    return c.json(successResponse({ date, abhyasika_id: parseInt(abhyasika_id), seats: seatsList.results }, 'Seat availability'));
+  } catch (err: any) {
+    return c.json(errorResponse(err.message || 'Failed to fetch availability'), 500);
+  }
+});
+
+// GET /api/seats/availability/:seatId - Public: check single seat availability
 seats.get('/availability/:seatId', async (c) => {
   try {
     const seatId = c.req.param('seatId');
