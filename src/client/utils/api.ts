@@ -170,7 +170,30 @@ export const api = {
 
   stats: {
     platform: () => request('GET', '/stats'),
-  }
+  },
+
+  library: {
+    // Libraries
+    list: () => request('GET', '/library'),
+    create: (d: any) => request('POST', '/library', d),
+    get: (id: any) => request('GET', `/library/${id}`),
+    update: (id: any, d: any) => request('PUT', `/library/${id}`, d),
+    publicGet: (abhyasikaId: any) => request('GET', `/library/abhyasika/${abhyasikaId}`),
+    stats: (libraryId: any) => request('GET', `/library/${libraryId}/stats`),
+
+    // Categories
+    categories: (libraryId: any) => request('GET', `/library/${libraryId}/categories`),
+    createCategory: (libraryId: any, d: any) => request('POST', `/library/${libraryId}/categories`, d),
+    updateCategory: (libraryId: any, catId: any, d: any) => request('PUT', `/library/${libraryId}/categories/${catId}`, d),
+    deleteCategory: (libraryId: any, catId: any) => request('DELETE', `/library/${libraryId}/categories/${catId}`),
+
+    // Books
+    books: (libraryId: any, p?: any) => request('GET', `/library/${libraryId}/books`, undefined, p),
+    addBook: (libraryId: any, d: any) => request('POST', `/library/${libraryId}/books`, d),
+    getBook: (libraryId: any, bookId: any) => request('GET', `/library/${libraryId}/books/${bookId}`),
+    updateBook: (libraryId: any, bookId: any, d: any) => request('PUT', `/library/${libraryId}/books/${bookId}`, d),
+    deleteBook: (libraryId: any, bookId: any) => request('DELETE', `/library/${libraryId}/books/${bookId}`),
+  },
 };
 
 export default api;

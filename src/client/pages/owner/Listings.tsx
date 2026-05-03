@@ -7,6 +7,7 @@ const SIDEBAR = [
   { label: 'My Listings', icon: 'fa-building', path: '/owner/listings' },
   { label: 'Bookings', icon: 'fa-calendar-check', path: '/owner/bookings' },
   { label: 'Revenue', icon: 'fa-chart-line', path: '/owner/revenue' },
+  { label: 'Library', icon: 'fa-book-open', path: '/owner/library' },
   { label: 'Profile', icon: 'fa-user', path: '/owner/profile' },
 ];
 export default function OwnerListings() {

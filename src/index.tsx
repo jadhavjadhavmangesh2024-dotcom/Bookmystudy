@@ -13,6 +13,7 @@ import bookingRoutes from './api/routes/bookings';
 import paymentRoutes from './api/routes/payments';
 import adminRoutes from './api/routes/admin';
 import miscRoutes from './api/routes/misc';
+import libraryRoutes from './api/routes/library';
 
 // ============================================================
 // IN-MEMORY CACHE (edge-local, resets per Worker instance)
@@ -110,6 +111,9 @@ app.route('/api/admin', adminRoutes);
 
 // Misc routes (reviews, notifications, cities, etc.)
 app.route('/api', miscRoutes);
+
+// Library routes (owner library management)
+app.route('/api/library', libraryRoutes);
 
 // ============================================================
 // DATABASE INIT (Auto-create tables if needed)

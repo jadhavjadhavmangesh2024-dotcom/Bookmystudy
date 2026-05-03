@@ -29,6 +29,7 @@ import OwnerSeats from './pages/owner/Seats';
 import OwnerBookings from './pages/owner/Bookings';
 import OwnerRevenue from './pages/owner/Revenue';
 import OwnerProfile from './pages/owner/Profile';
+import OwnerLibrary from './pages/owner/Library';
 
 // Admin Pages
 import AdminDashboard from './pages/admin/Dashboard';
@@ -89,6 +90,7 @@ function AppRoutes() {
         <Route path="/owner/listings/:id/seats" element={<ProtectedRoute roles={['owner']}><OwnerSeats /></ProtectedRoute>} />
         <Route path="/owner/bookings" element={<ProtectedRoute roles={['owner']}><OwnerBookings /></ProtectedRoute>} />
         <Route path="/owner/revenue" element={<ProtectedRoute roles={['owner']}><OwnerRevenue /></ProtectedRoute>} />
+        <Route path="/owner/library" element={<ProtectedRoute roles={['owner']}><OwnerLibrary /></ProtectedRoute>} />
         <Route path="/owner/profile" element={<ProtectedRoute roles={['owner']}><OwnerProfile /></ProtectedRoute>} />
 
         {/* Admin Routes */}
