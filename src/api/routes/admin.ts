@@ -404,15 +404,27 @@ admin.get('/settings', authMiddleware, requireAdmin(), async (c) => {
 admin.put('/settings', authMiddleware, requireAdmin(), async (c) => {
   try {
     const user = c.get('user' as any) as any;
-    const updates = await c.req.json(); // Array of {key, value}
+    const body = await c.req.json();
     const db = c.env.DB;
+
+    // Accept both Array [{key,value},...] and Object {key: value, ...}
+    let updates: { key: string; value: string }[] = [];
+    if (Array.isArray(body)) {
+      updates = body;
+    } else if (body && typeof body === 'object') {
+      updates = Object.entries(body).map(([key, value]) => ({ key, value: String(value) }));
+    }
+
+    if (!updates.length) {
+      return c.json(errorResponse('No settings provided'), 400);
+    }
 
     for (const update of updates) {
       await db.prepare(`
         INSERT INTO platform_settings (key, value, updated_by, updated_at)
         VALUES (?, ?, ?, datetime('now'))
         ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_by = excluded.updated_by, updated_at = excluded.updated_at
-      `).bind(update.key, update.value, user.id).run();
+      `).bind(update.key, String(update.value ?? ''), user.id).run();
     }
 
     return c.json(successResponse(null, 'Settings updated'));

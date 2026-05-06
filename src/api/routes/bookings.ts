@@ -87,6 +87,39 @@ bookings.get('/owner/all', authMiddleware, requireOwner(), async (c) => {
   }
 });
 
+// GET /api/bookings/owner  ← alias for /owner/all (frontend compatibility)
+bookings.get('/owner', authMiddleware, requireOwner(), async (c) => {
+  try {
+    const user = c.get('user') as AuthUser;
+    const page = parseInt(c.req.query('page') || '1');
+    const limit = parseInt(c.req.query('limit') || '20');
+    const offset = (page - 1) * limit;
+    const status = c.req.query('status');
+    const abhyasikaId = c.req.query('abhyasika_id');
+    const db = c.env.DB;
+
+    let where = 'a.owner_id = ?';
+    const params: any[] = [user.id];
+    if (status) { where += ' AND b.status = ?'; params.push(status); }
+    if (abhyasikaId) { where += ' AND b.abhyasika_id = ?'; params.push(abhyasikaId); }
+
+    const results = await db.prepare(`
+      SELECT b.*, a.name as abhyasika_name, s.seat_number,
+        u.first_name, u.last_name, u.phone as student_phone
+      FROM bookings b
+      JOIN abhyasikas a ON a.id = b.abhyasika_id
+      JOIN seats s ON s.id = b.seat_id
+      JOIN users u ON u.id = b.student_id
+      WHERE ${where}
+      ORDER BY b.created_at DESC LIMIT ? OFFSET ?
+    `).bind(...params, limit, offset).all();
+
+    return c.json(successResponse(results.results, 'Owner bookings'));
+  } catch (err: any) {
+    return c.json(errorResponse(err.message || 'Failed to fetch bookings'), 500);
+  }
+});
+
 // GET /api/bookings/:id
 bookings.get('/:id', authMiddleware, async (c) => {
   try {
@@ -199,9 +232,9 @@ bookings.post('/', authMiddleware, async (c) => {
         booking_type, start_date, end_date, total_days, base_amount, discount_amount,
         coupon_code, coupon_discount, platform_fee, tax_amount, total_amount, status)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')
-    `).bind(bookingNumber, user.id, abhyasika_id, seat_id, seat.category_id,
+    `).bind(bookingNumber, user.id, abhyasika_id, seat_id, seat.category_id ?? null,
       booking_type, start_date, end_date, totalDays, baseAmount, 0,
-      coupon_code, couponDiscount, platformFee, taxAmount, finalAmount).run();
+      coupon_code ?? null, couponDiscount, platformFee, taxAmount, finalAmount).run();
 
     const bookingId = result.meta.last_row_id;
     const paymentNumber = generatePaymentNumber();

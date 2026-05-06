@@ -148,20 +148,45 @@ misc.put('/users/profile', authMiddleware, async (c) => {
     const { first_name, last_name, phone, avatar_url } = body;
     const db = c.env.DB;
 
-    await db.prepare('UPDATE users SET first_name=?, last_name=?, phone=?, avatar_url=? WHERE id = ?').bind(first_name, last_name, phone, avatar_url, user.id).run();
+    // Use COALESCE so only provided fields are updated; null values won't overwrite existing data
+    await db.prepare(`
+      UPDATE users SET
+        first_name = COALESCE(?, first_name),
+        last_name  = COALESCE(?, last_name),
+        phone      = COALESCE(?, phone),
+        avatar_url = COALESCE(?, avatar_url)
+      WHERE id = ?
+    `).bind(first_name ?? null, last_name ?? null, phone ?? null, avatar_url ?? null, user.id).run();
 
     if (user.role === 'student') {
       const { date_of_birth, gender, qualification, exam_preparing, preferred_study_time } = body;
+      // Ensure student_profiles row exists before updating
+      await db.prepare('INSERT OR IGNORE INTO student_profiles (user_id) VALUES (?)').bind(user.id).run();
       await db.prepare(`
-        UPDATE student_profiles SET date_of_birth=?, gender=?, qualification=?, exam_preparing=?, preferred_study_time=?, updated_at=datetime('now')
+        UPDATE student_profiles SET
+          date_of_birth        = COALESCE(?, date_of_birth),
+          gender               = COALESCE(?, gender),
+          qualification        = COALESCE(?, qualification),
+          exam_preparing       = COALESCE(?, exam_preparing),
+          preferred_study_time = COALESCE(?, preferred_study_time),
+          updated_at           = datetime('now')
         WHERE user_id = ?
-      `).bind(date_of_birth, gender, qualification, exam_preparing, preferred_study_time, user.id).run();
+      `).bind(date_of_birth ?? null, gender ?? null, qualification ?? null, exam_preparing ?? null, preferred_study_time ?? null, user.id).run();
     } else if (user.role === 'owner') {
       const { business_name, gst_number, pan_number, bank_account_number, bank_ifsc, upi_id } = body;
+      // Ensure owner_profiles row exists before updating
+      await db.prepare('INSERT OR IGNORE INTO owner_profiles (user_id) VALUES (?)').bind(user.id).run();
       await db.prepare(`
-        UPDATE owner_profiles SET business_name=?, gst_number=?, pan_number=?, bank_account_number=?, bank_ifsc=?, upi_id=?, updated_at=datetime('now')
+        UPDATE owner_profiles SET
+          business_name       = COALESCE(?, business_name),
+          gst_number          = COALESCE(?, gst_number),
+          pan_number          = COALESCE(?, pan_number),
+          bank_account_number = COALESCE(?, bank_account_number),
+          bank_ifsc           = COALESCE(?, bank_ifsc),
+          upi_id              = COALESCE(?, upi_id),
+          updated_at          = datetime('now')
         WHERE user_id = ?
-      `).bind(business_name, gst_number, pan_number, bank_account_number, bank_ifsc, upi_id, user.id).run();
+      `).bind(business_name ?? null, gst_number ?? null, pan_number ?? null, bank_account_number ?? null, bank_ifsc ?? null, upi_id ?? null, user.id).run();
     }
 
     return c.json(successResponse(null, 'Profile updated'));
@@ -232,7 +257,11 @@ misc.post('/wishlists', authMiddleware, async (c) => {
 misc.post('/coupons/validate', authMiddleware, async (c) => {
   try {
     const user = c.get('user') as AuthUser;
-    const { code, amount } = await c.req.json();
+    let body: any = {};
+    try { body = await c.req.json(); } catch { /* empty body */ }
+    const { code, amount } = body;
+    if (!code) return c.json(errorResponse('Coupon code is required'), 400);
+    if (amount === undefined || amount === null) return c.json(errorResponse('Amount is required'), 400);
     const db = c.env.DB;
 
     const coupon = await db.prepare(`

@@ -87,7 +87,8 @@ auth.post('/register', async (c) => {
 // POST /api/auth/login
 auth.post('/login', async (c) => {
   try {
-    const body = await c.req.json();
+    let body: any = {};
+    try { body = await c.req.json(); } catch { /* empty body – handled below */ }
     const { email, password } = body;
 
     if (!email || !password) {

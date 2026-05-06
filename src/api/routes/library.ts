@@ -281,11 +281,8 @@ library.delete('/:libraryId/categories/:catId', authMiddleware, requireOwner(), 
       return c.json(errorResponse('Access denied'), 403);
     }
 
-    // Check if books exist in this category
-    const booksInCat = await db.prepare('SELECT COUNT(*) as cnt FROM books WHERE category_id = ? AND is_active = 1').bind(catId).first() as any;
-    if (booksInCat && booksInCat.cnt > 0) {
-      return c.json(errorResponse(`Cannot delete: ${booksInCat.cnt} books are in this category. Move or delete them first.`), 400);
-    }
+    // Null-out category_id on all books in this category (instead of blocking deletion)
+    await db.prepare('UPDATE books SET category_id = NULL WHERE category_id = ?').bind(catId).run();
 
     await db.prepare('DELETE FROM book_categories WHERE id = ? AND library_id = ?').bind(catId, libraryId).run();
     return c.json(successResponse(null, 'Category deleted successfully'));
